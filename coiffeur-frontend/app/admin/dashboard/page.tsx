@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/authService";
 import { dashboardService } from "@/lib/dashboardService";
@@ -85,32 +85,6 @@ type AlertState = {
 } | null;
 
 // ============================================================
-// FORMS INITIAUX
-// ============================================================
-
-const initialServiceForm = {
-  id: "",
-  nom: "",
-  duree: "",
-  prix: "",
-  image: "",
-  description: "",
-  statut: "actif",
-};
-
-const initialCreneauForm = {
-  service_id: "",
-  date_creneau: "",
-  heure: "09",
-  minute: "30",
-};
-
-const initialRdvFilter = {
-  statut: "",
-  date: "",
-};
-
-// ============================================================
 // FONCTIONS UTILES
 // ============================================================
 
@@ -142,6 +116,37 @@ function isPastCreneau(dateValue: string, timeValue: string): boolean {
 }
 
 // ============================================================
+// FORMS INITIAUX
+// ============================================================
+
+const initialServiceForm = {
+  id: "",
+  nom: "",
+  duree: "",
+  prix: "",
+  image: "",
+  description: "",
+  statut: "actif",
+};
+
+const initialCreneauForm = {
+  service_id: "",
+  date_creneau: "",
+  heure: "09",
+  minute: "30",
+};
+
+const initialRdvFilter = {
+  statut: "",
+  date: "",
+};
+
+// ✅ Par défaut : date du jour
+const initialCreneauFilter = {
+  date: getTodayDateValue(),
+};
+
+// ============================================================
 // COMPONENTS
 // ============================================================
 
@@ -171,8 +176,7 @@ function PrettyAlert({
       title: "Succès",
       wrapper:
         "border-emerald-400/30 bg-gradient-to-r from-emerald-500/15 via-[#0D0D0D] to-[#0D0D0D]",
-      iconBox:
-        "bg-emerald-400/15 text-emerald-300 border-emerald-400/30",
+      iconBox: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30",
       glow: "shadow-emerald-500/10",
     },
     error: {
@@ -202,7 +206,7 @@ function PrettyAlert({
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 mb-6 space-y-3">
+    <div className="mx-auto mb-6 max-w-7xl space-y-3 px-6">
       {alert && (
         <div
           className={`relative overflow-hidden rounded-3xl border p-4 shadow-2xl backdrop-blur-xl animate-[slideDown_0.25s_ease-out] ${alertConfig[alert.type].wrapper} ${alertConfig[alert.type].glow}`}
@@ -265,16 +269,17 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="group rounded-2xl bg-[#0D0D0D] border border-white/10 p-5 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:border-amber-400/30 hover:shadow-amber-500/10">
+    <div className="group rounded-2xl border border-white/10 bg-[#0D0D0D] p-5 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:border-amber-400/30 hover:shadow-amber-500/10">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm font-black text-white uppercase tracking-wider">
+          <p className="text-sm font-black uppercase tracking-wider text-white">
             {title}
           </p>
           <p className={`mt-2 text-2xl font-serif font-bold ${goldText}`}>
             {value}
           </p>
         </div>
+
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-[#FBBF24] transition-transform duration-300 group-hover:scale-110">
           {icon}
         </div>
@@ -337,11 +342,12 @@ function RdvBadge({ statut }: { statut: RendezvousStatut }) {
 
 function DashboardHeader({ onLogout }: { onLogout: () => void }) {
   return (
-    <div className="mx-auto max-w-7xl px-6 pt-8 pb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 pb-6 pt-8">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-black shadow-lg shadow-amber-500/20">
           <Scissors size={20} />
         </div>
+
         <div>
           <h1 className={`text-2xl font-serif font-bold ${goldText}`}>
             Dashboard Admin
@@ -351,9 +357,10 @@ function DashboardHeader({ onLogout }: { onLogout: () => void }) {
           </p>
         </div>
       </div>
+
       <button
         onClick={onLogout}
-        className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-bold text-gray-200 hover:bg-white/10 hover:text-white transition-all"
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-gray-200 transition-all hover:bg-white/10 hover:text-white"
       >
         <LogOut size={18} />
         Déconnexion
@@ -371,21 +378,25 @@ function StatsSection({ stats }: { stats: DashboardStats | null }) {
           value={stats?.total_rendezvous ?? 0}
           icon={<CalendarDays />}
         />
+
         <StatCard
           title="En attente"
           value={stats?.rendezvous_en_attente ?? 0}
           icon={<Clock />}
         />
+
         <StatCard
           title="Confirmés"
           value={stats?.rendezvous_confirmes ?? 0}
           icon={<CheckCircle />}
         />
+
         <StatCard
           title="Disponibles"
           value={stats?.creneaux_disponibles ?? 0}
           icon={<CheckCircle />}
         />
+
         <StatCard
           title="Recette"
           value={`${stats?.recette_totale ?? 0} DZD`}
@@ -432,7 +443,7 @@ function ServiceForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-bold text-gray-400 mb-1 block">
+            <label className="mb-1 block text-xs font-bold text-gray-400">
               Durée
             </label>
             <input
@@ -445,8 +456,9 @@ function ServiceForm({
               className={inputClass}
             />
           </div>
+
           <div>
-            <label className="text-xs font-bold text-gray-400 mb-1 block">
+            <label className="mb-1 block text-xs font-bold text-gray-400">
               Prix
             </label>
             <input
@@ -479,7 +491,7 @@ function ServiceForm({
         />
 
         <div>
-          <label className="text-xs font-bold text-gray-400 mb-1 block">
+          <label className="mb-1 block text-xs font-bold text-gray-400">
             Statut
           </label>
           <select
@@ -504,7 +516,7 @@ function ServiceForm({
           <button
             type="button"
             onClick={onReset}
-            className="w-full rounded-2xl bg-white/5 border border-white/10 px-5 py-3 font-bold text-white hover:bg-white/10 transition"
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-bold text-white transition hover:bg-white/10"
           >
             ↩️ Annuler la modification
           </button>
@@ -559,11 +571,11 @@ function ServicesTable({
                   </span>
                 </td>
 
-                <td className="px-4 py-4 text-right space-x-2">
+                <td className="space-x-2 px-4 py-4 text-right">
                   <button
                     onClick={() => onEdit(service)}
                     title="Modifier ce service"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 border border-white/20 !text-white hover:bg-black hover:!text-white transition group-hover:border-black/20 group-hover:bg-black/5 group-hover:!text-black"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/5 !text-white transition hover:bg-black hover:!text-white group-hover:border-black/20 group-hover:bg-black/5 group-hover:!text-black"
                   >
                     <Pencil size={16} />
                   </button>
@@ -571,7 +583,7 @@ function ServicesTable({
                   <button
                     onClick={() => onDelete(service.id)}
                     title="Supprimer ce service"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-400/10 border border-red-400/30 !text-red-300 hover:bg-red-500 hover:!text-white transition group-hover:border-red-500/40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-400/10 !text-red-300 transition hover:bg-red-500 hover:!text-white group-hover:border-red-500/40"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -583,7 +595,7 @@ function ServicesTable({
 
         {services.length === 0 && (
           <div className="py-12 text-center">
-            <Scissors size={40} className="mx-auto text-gray-600 mb-3" />
+            <Scissors size={40} className="mx-auto mb-3 text-gray-600" />
             <p className="font-semibold text-gray-400">
               Aucun service enregistré.
             </p>
@@ -614,13 +626,14 @@ function CreneauForm({
       <h2 className={`text-xl font-serif font-bold ${goldText}`}>
         📅 Publier un créneau
       </h2>
+
       <p className="mt-2 text-sm font-medium text-gray-400">
         Choisissez la date, l’heure et les minutes.
       </p>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="text-xs font-bold text-gray-400 mb-1 block">
+          <label className="mb-1 block text-xs font-bold text-gray-400">
             Service
           </label>
           <select
@@ -640,7 +653,7 @@ function CreneauForm({
         </div>
 
         <div>
-          <label className="text-xs font-bold text-gray-400 mb-1 block">
+          <label className="mb-1 block text-xs font-bold text-gray-400">
             Date
           </label>
           <input
@@ -656,7 +669,7 @@ function CreneauForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-bold text-gray-400 mb-1 block">
+            <label className="mb-1 block text-xs font-bold text-gray-400">
               Heure
             </label>
             <select
@@ -672,8 +685,9 @@ function CreneauForm({
               ))}
             </select>
           </div>
+
           <div>
-            <label className="text-xs font-bold text-gray-400 mb-1 block">
+            <label className="mb-1 block text-xs font-bold text-gray-400">
               Minutes
             </label>
             <select
@@ -691,9 +705,9 @@ function CreneauForm({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white/5 border border-white/15 p-4 text-sm font-bold text-white text-center">
+        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 text-center text-sm font-bold text-white">
           Créneau sélectionné :{" "}
-          <span className="text-[#FBBF24] text-lg">
+          <span className="text-lg text-[#FBBF24]">
             {form.heure}:{form.minute}
           </span>
         </div>
@@ -709,18 +723,94 @@ function CreneauForm({
   );
 }
 
+function CreneauxFilters({
+  filter,
+  total,
+  onChange,
+  onReset,
+}: {
+  filter: typeof initialCreneauFilter;
+  total: number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.14em] text-white">
+            Filtre des créneaux disponibles
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-400">
+            Par défaut, les créneaux disponibles du jour sont affichés.
+          </p>
+        </div>
+
+        <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto] lg:w-auto">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-gray-400">
+              Date disponible
+            </label>
+            <input
+              type="date"
+              name="date"
+              value={filter.date}
+              min={getTodayDateValue()}
+              onChange={onChange}
+              className="w-full rounded-2xl border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B]"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={onReset}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10 sm:self-end"
+          >
+            <RefreshCcw size={15} />
+            Aujourd’hui
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-300">
+        Résultat : {total} créneau(x) disponible(s) pour la date {filter.date}
+      </div>
+    </div>
+  );
+}
+
 function CreneauxTable({
   creneaux,
+  filter,
+  onFilterChange,
+  onResetFilter,
   onDelete,
 }: {
   creneaux: Creneau[];
+  filter: typeof initialCreneauFilter;
+  onFilterChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onResetFilter: () => void;
   onDelete: (id: number) => void;
 }) {
   return (
     <div className={cardClass}>
-      <h2 className={`text-xl font-serif font-bold ${goldText}`}>
-        📌 Créneaux publiés
-      </h2>
+      <div>
+        <h2 className={`text-xl font-serif font-bold ${goldText}`}>
+          📌 Créneaux disponibles du jour
+        </h2>
+
+        <p className="mt-1 text-sm font-medium text-gray-400">
+          Le tableau affiche uniquement les créneaux disponibles selon la date
+          choisie.
+        </p>
+      </div>
+
+      <CreneauxFilters
+        filter={filter}
+        total={creneaux.length}
+        onChange={onFilterChange}
+        onReset={onResetFilter}
+      />
 
       <div className={tableWrapperClass}>
         <table className={`${tableClass} min-w-[800px]`}>
@@ -738,12 +828,15 @@ function CreneauxTable({
             {creneaux.map((creneau) => (
               <tr key={creneau.id} className={rowClass}>
                 <td className={tdWhite}>{creneau.service_nom || "—"}</td>
+
                 <td className={tdLight}>
                   {formatDateOnly(creneau.date_creneau)}
                 </td>
+
                 <td className={tdLight}>
                   {formatTimeOnly(creneau.heure_creneau)}
                 </td>
+
                 <td className="px-4 py-4 !text-white transition-colors duration-200 group-hover:!text-black">
                   <CreneauBadge statut={creneau.statut} />
                 </td>
@@ -757,7 +850,7 @@ function CreneauxTable({
                         ? "Créneau réservé, suppression impossible"
                         : "Supprimer ce créneau"
                     }
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-400/10 border border-red-400/30 !text-red-300 hover:bg-red-500 hover:!text-white transition disabled:opacity-30 disabled:cursor-not-allowed group-hover:border-red-500/40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-400/10 !text-red-300 transition hover:bg-red-500 hover:!text-white disabled:cursor-not-allowed disabled:opacity-30 group-hover:border-red-500/40"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -769,9 +862,9 @@ function CreneauxTable({
 
         {creneaux.length === 0 && (
           <div className="py-12 text-center">
-            <CalendarDays size={40} className="mx-auto text-gray-600 mb-3" />
+            <CalendarDays size={40} className="mx-auto mb-3 text-gray-600" />
             <p className="font-semibold text-gray-400">
-              Aucun créneau publié.
+              Aucun créneau disponible pour cette date.
             </p>
           </div>
         )}
@@ -799,7 +892,7 @@ function RdvFilters({
         name="statut"
         value={filter.statut}
         onChange={onChange}
-        className="rounded-2xl bg-white border border-white/20 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B]"
+        className="rounded-2xl border border-white/20 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B]"
       >
         <option value="">📋 Tous les statuts</option>
         <option value="en_attente">🟡 En attente</option>
@@ -813,7 +906,7 @@ function RdvFilters({
         name="date"
         value={filter.date}
         onChange={onChange}
-        className="rounded-2xl bg-white border border-white/20 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B]"
+        className="rounded-2xl border border-white/20 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B]"
       />
 
       <button
@@ -825,7 +918,7 @@ function RdvFilters({
 
       <button
         onClick={onReset}
-        className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 border border-white/15 px-4 py-2 text-sm font-bold text-white hover:bg-white/10 transition"
+        className="flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10"
       >
         <RefreshCcw size={15} />
         Réinitialiser
@@ -865,9 +958,13 @@ function RdvTable({
               <td className={tdWhite}>
                 {rdv.nom_client} {rdv.prenom_client || ""}
               </td>
+
               <td className={tdLight}>{rdv.telephone}</td>
+
               <td className={tdLight}>{rdv.service_nom || "—"}</td>
+
               <td className={tdLight}>{formatDateOnly(rdv.date_rdv)}</td>
+
               <td className={tdLight}>{formatTimeOnly(rdv.heure_rdv)}</td>
 
               <td className="px-4 py-4 !text-white transition-colors duration-200 group-hover:!text-black">
@@ -876,7 +973,7 @@ function RdvTable({
 
               <td className={tdLight}>{rdv.prix} DZD</td>
 
-              <td className="px-4 py-4 text-right space-x-2">
+              <td className="space-x-2 px-4 py-4 text-right">
                 <select
                   value={rdv.statut}
                   onChange={(e) =>
@@ -885,7 +982,7 @@ function RdvTable({
                       e.target.value as RendezvousStatut
                     )
                   }
-                  className="rounded-xl border border-white/20 bg-white px-2 py-2 text-xs font-black text-slate-900 outline-none cursor-pointer hover:border-[#F59E0B] transition"
+                  className="cursor-pointer rounded-xl border border-white/20 bg-white px-2 py-2 text-xs font-black text-slate-900 outline-none transition hover:border-[#F59E0B]"
                 >
                   <option value="en_attente">🟡 En attente</option>
                   <option value="confirme">🟢 Confirmé</option>
@@ -896,7 +993,7 @@ function RdvTable({
                 <button
                   onClick={() => onDelete(rdv.id)}
                   title="Supprimer ce rendez-vous"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-400/10 border border-red-400/30 !text-red-300 hover:bg-red-500 hover:!text-white transition group-hover:border-red-500/40"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-400/10 !text-red-300 transition hover:bg-red-500 hover:!text-white group-hover:border-red-500/40"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -908,7 +1005,7 @@ function RdvTable({
 
       {rendezvous.length === 0 && (
         <div className="py-12 text-center">
-          <CalendarDays size={40} className="mx-auto text-gray-600 mb-3" />
+          <CalendarDays size={40} className="mx-auto mb-3 text-gray-600" />
           <p className="font-semibold text-gray-400">
             Aucun rendez-vous pour le moment.
           </p>
@@ -937,30 +1034,53 @@ export default function AdminDashboardPage() {
   const [creneauForm, setCreneauForm] = useState(initialCreneauForm);
   const [rdvFilter, setRdvFilter] = useState(initialRdvFilter);
 
+  // ✅ Par défaut : date du jour
+  const [creneauFilter, setCreneauFilter] = useState(initialCreneauFilter);
+
+  // ✅ Affiche seulement :
+  // 1) les créneaux disponibles
+  // 2) de la date sélectionnée
+  // par défaut = aujourd’hui
+  const creneauxDisponiblesFiltres = useMemo(() => {
+    return creneaux.filter((creneau) => {
+      const isDisponible = creneau.statut === "disponible";
+      const sameDate =
+        formatDateOnly(creneau.date_creneau) === creneauFilter.date;
+
+      return isDisponible && sameDate;
+    });
+  }, [creneaux, creneauFilter.date]);
+
   function showAlert(type: AlertType, message: string) {
     setAlert({ type, message });
   }
 
   useEffect(() => {
     if (!alert) return;
+
     const timer = setTimeout(() => {
       setAlert(null);
     }, 4500);
+
     return () => clearTimeout(timer);
   }, [alert]);
 
   const checkAuth = useCallback(() => {
     const isAuth = authService.isAuthenticated();
+
     if (!isAuth) {
       router.push("/admin/login");
       return false;
     }
+
     return true;
   }, [router]);
 
   const loadData = useCallback(async () => {
     if (!checkAuth()) return;
+
     setLoading(true);
+
     try {
       const [statsRes, servicesRes, rdvRes, creneauxRes] =
         await Promise.all([
@@ -973,10 +1093,21 @@ export default function AdminDashboardPage() {
           creneauService.getAllAdmin(),
         ]);
 
-      if (statsRes.success && statsRes.data) setStats(statsRes.data);
-      if (servicesRes.success && servicesRes.data) setServices(servicesRes.data);
-      if (rdvRes.success && rdvRes.data) setRendezvous(rdvRes.data);
-      if (creneauxRes.success && creneauxRes.data) setCreneaux(creneauxRes.data);
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data);
+      }
+
+      if (servicesRes.success && servicesRes.data) {
+        setServices(servicesRes.data);
+      }
+
+      if (rdvRes.success && rdvRes.data) {
+        setRendezvous(rdvRes.data);
+      }
+
+      if (creneauxRes.success && creneauxRes.data) {
+        setCreneaux(creneauxRes.data);
+      }
     } catch (error) {
       console.error("Erreur chargement dashboard:", error);
       showAlert("error", "Erreur lors du chargement du dashboard");
@@ -1015,6 +1146,7 @@ export default function AdminDashboardPage() {
       description: service.description || "",
       statut: service.statut || "actif",
     });
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1024,6 +1156,7 @@ export default function AdminDashboardPage() {
 
   async function saveService(e: React.FormEvent) {
     e.preventDefault();
+
     const duree = Number(serviceForm.duree);
     const prix = Number(serviceForm.prix);
 
@@ -1031,10 +1164,12 @@ export default function AdminDashboardPage() {
       showAlert("warning", "Le nom du service est obligatoire");
       return;
     }
+
     if (!duree || duree <= 0) {
       showAlert("warning", "Durée invalide");
       return;
     }
+
     if (prix < 0) {
       showAlert("warning", "Prix invalide");
       return;
@@ -1066,7 +1201,9 @@ export default function AdminDashboardPage() {
     if (!confirm("Supprimer ce service ? Cette action est irréversible.")) {
       return;
     }
+
     const res = await serviceService.delete(id);
+
     if (res.success) {
       showAlert("success", "Service supprimé avec succès");
       loadData();
@@ -1091,6 +1228,7 @@ export default function AdminDashboardPage() {
       showAlert("warning", "Veuillez choisir un service");
       return;
     }
+
     if (!creneauForm.date_creneau) {
       showAlert("warning", "Veuillez choisir une date");
       return;
@@ -1098,7 +1236,6 @@ export default function AdminDashboardPage() {
 
     const heureFinale = `${creneauForm.heure}:${creneauForm.minute}`;
 
-    // Vérification : créneau passé
     if (isPastCreneau(creneauForm.date_creneau, heureFinale)) {
       showAlert(
         "error",
@@ -1107,7 +1244,6 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    // Tentative de création (le backend renverra une erreur si le créneau existe déjà)
     const res = await creneauService.create({
       service_id: creneauForm.service_id,
       date_creneau: creneauForm.date_creneau,
@@ -1117,17 +1253,24 @@ export default function AdminDashboardPage() {
 
     if (res.success) {
       showAlert("success", `Créneau ${heureFinale} ajouté avec succès`);
+
+      // ✅ Après ajout, afficher la date du créneau ajouté
+      setCreneauFilter({
+        date: creneauForm.date_creneau,
+      });
+
       setCreneauForm(initialCreneauForm);
       loadData();
     } else {
-      // Le message d'erreur du backend (ex: "Ce créneau existe déjà") sera affiché ici
       showAlert("error", res.message || "Erreur lors de l'ajout du créneau");
     }
   }
 
   async function deleteCreneau(id: number) {
     if (!confirm("Supprimer ce créneau ?")) return;
+
     const res = await creneauService.delete(id);
+
     if (res.success) {
       showAlert("success", "Créneau supprimé avec succès");
       loadData();
@@ -1136,8 +1279,28 @@ export default function AdminDashboardPage() {
     }
   }
 
+  function handleCreneauFilterChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setCreneauFilter((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value || getTodayDateValue(),
+    }));
+  }
+
+  // ✅ Reset revient à aujourd’hui
+  function resetCreneauFilter() {
+    setCreneauFilter({
+      date: getTodayDateValue(),
+    });
+
+    showAlert(
+      "info",
+      "Filtre réinitialisé sur les créneaux disponibles du jour"
+    );
+  }
+
   async function updateRdvStatut(id: number, statut: RendezvousStatut) {
     const res = await rendezvousService.updateStatut(id, { statut });
+
     if (res.success) {
       showAlert("success", "Statut du rendez-vous mis à jour");
       loadData();
@@ -1150,7 +1313,9 @@ export default function AdminDashboardPage() {
     if (!confirm("Supprimer ce rendez-vous ? Cette action est irréversible.")) {
       return;
     }
+
     const res = await rendezvousService.delete(id);
+
     if (res.success) {
       showAlert("success", "Rendez-vous supprimé avec succès");
       loadData();
@@ -1179,7 +1344,7 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white font-sans">
+    <main className="min-h-screen bg-[#050505] font-sans text-white">
       <style jsx global>{`
         @keyframes slideDown {
           from {
@@ -1227,10 +1392,16 @@ export default function AdminDashboardPage() {
             onSubmit={saveCreneau}
           />
 
-          <CreneauxTable creneaux={creneaux} onDelete={deleteCreneau} />
+          <CreneauxTable
+            creneaux={creneauxDisponiblesFiltres}
+            filter={creneauFilter}
+            onFilterChange={handleCreneauFilterChange}
+            onResetFilter={resetCreneauFilter}
+            onDelete={deleteCreneau}
+          />
         </div>
 
-        <div className="mt-8 rounded-3xl bg-[#0D0D0D] border border-white/10 p-6 shadow-2xl">
+        <div className="mt-8 rounded-3xl border border-white/10 bg-[#0D0D0D] p-6 shadow-2xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 className={`text-xl font-serif font-bold ${goldText}`}>
