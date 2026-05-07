@@ -8,8 +8,39 @@ function isValidTime(value) {
     return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""));
 }
 
+/*
+    Supprime automatiquement les créneaux passés non réservés.
+
+    Important :
+    - On supprime uniquement les créneaux qui ne sont pas "reserve".
+    - Les créneaux réservés restent pour garder l'historique lié aux rendez-vous.
+*/
+async function deletePastAvailableCreneaux() {
+    await pool.query(`
+        DELETE FROM creneaux_disponibles
+        WHERE statut <> 'reserve'
+          AND TIMESTAMP(date_creneau, heure_creneau) < NOW()
+    `);
+}
+
+/*
+    Vérifie côté SQL si une date + heure est passée.
+*/
+async function isPastDateTime(date_creneau, heure_creneau) {
+    const dateTimeValue = `${date_creneau} ${heure_creneau}:00`;
+
+    const [rows] = await pool.query(
+        "SELECT TIMESTAMP(?) < NOW() AS is_past",
+        [dateTimeValue]
+    );
+
+    return rows[0].is_past === 1;
+}
+
 const getAvailableCreneaux = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const { service_id, date } = req.query;
 
         let sql = `
@@ -25,7 +56,7 @@ const getAvailableCreneaux = async (req, res) => {
             FROM creneaux_disponibles c
             LEFT JOIN services s ON s.id = c.service_id
             WHERE c.statut = 'disponible'
-              AND c.date_creneau >= CURDATE()
+              AND TIMESTAMP(c.date_creneau, c.heure_creneau) >= NOW()
         `;
 
         const params = [];
@@ -66,6 +97,8 @@ const getAvailableCreneaux = async (req, res) => {
 
 const getPublicCreneauxByDate = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const { service_id, date } = req.query;
 
         if (!service_id || !date) {
@@ -98,6 +131,7 @@ const getPublicCreneauxByDate = async (req, res) => {
             WHERE c.service_id = ?
               AND c.date_creneau = ?
               AND c.statut = 'disponible'
+              AND TIMESTAMP(c.date_creneau, c.heure_creneau) >= NOW()
             ORDER BY c.heure_creneau ASC
             `,
             [service_id, date]
@@ -118,6 +152,8 @@ const getPublicCreneauxByDate = async (req, res) => {
 
 const getPublicAvailableDates = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const { service_id } = req.query;
 
         if (!service_id) {
@@ -135,7 +171,8 @@ const getPublicAvailableDates = async (req, res) => {
                 SUM(CASE WHEN statut = 'disponible' THEN 1 ELSE 0 END) AS total_disponibles
             FROM creneaux_disponibles
             WHERE service_id = ?
-              AND date_creneau >= CURDATE()
+              AND statut = 'disponible'
+              AND TIMESTAMP(date_creneau, heure_creneau) >= NOW()
             GROUP BY date_creneau
             HAVING total_disponibles > 0
             ORDER BY date_creneau ASC
@@ -158,6 +195,8 @@ const getPublicAvailableDates = async (req, res) => {
 
 const getAllCreneauxAdmin = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const [rows] = await pool.query(
             `
             SELECT 
@@ -171,6 +210,8 @@ const getAllCreneauxAdmin = async (req, res) => {
                 s.prix AS service_prix
             FROM creneaux_disponibles c
             LEFT JOIN services s ON s.id = c.service_id
+            WHERE TIMESTAMP(c.date_creneau, c.heure_creneau) >= NOW()
+               OR c.statut = 'reserve'
             ORDER BY c.date_creneau DESC, c.heure_creneau DESC
             `
         );
@@ -190,6 +231,8 @@ const getAllCreneauxAdmin = async (req, res) => {
 
 const createCreneau = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const {
             service_id,
             date_creneau,
@@ -215,6 +258,15 @@ const createCreneau = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Heure invalide. Format attendu : HH:mm"
+            });
+        }
+
+        const isPast = await isPastDateTime(date_creneau, heure_creneau);
+
+        if (isPast) {
+            return res.status(400).json({
+                success: false,
+                message: "Impossible de créer un créneau avec une date ou une heure déjà passée"
             });
         }
 
@@ -273,7 +325,9 @@ const createCreneau = async (req, res) => {
                 DATE_FORMAT(c.date_creneau, '%Y-%m-%d') AS date_creneau,
                 TIME_FORMAT(c.heure_creneau, '%H:%i') AS heure_creneau,
                 c.statut,
-                s.nom AS service_nom
+                s.nom AS service_nom,
+                s.duree AS service_duree,
+                s.prix AS service_prix
             FROM creneaux_disponibles c
             LEFT JOIN services s ON s.id = c.service_id
             WHERE c.id = ?
@@ -297,6 +351,8 @@ const createCreneau = async (req, res) => {
 
 const updateCreneau = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const { id } = req.params;
 
         const {
@@ -327,6 +383,15 @@ const updateCreneau = async (req, res) => {
             });
         }
 
+        const isPast = await isPastDateTime(date_creneau, heure_creneau);
+
+        if (isPast) {
+            return res.status(400).json({
+                success: false,
+                message: "Impossible de modifier un créneau vers une date ou une heure déjà passée"
+            });
+        }
+
         const [oldRows] = await pool.query(
             "SELECT * FROM creneaux_disponibles WHERE id = ?",
             [id]
@@ -343,6 +408,18 @@ const updateCreneau = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Impossible de modifier un créneau réservé"
+            });
+        }
+
+        const [services] = await pool.query(
+            "SELECT id FROM services WHERE id = ? AND statut = 'actif'",
+            [service_id]
+        );
+
+        if (services.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Service introuvable ou inactif"
             });
         }
 
@@ -392,7 +469,9 @@ const updateCreneau = async (req, res) => {
                 DATE_FORMAT(c.date_creneau, '%Y-%m-%d') AS date_creneau,
                 TIME_FORMAT(c.heure_creneau, '%H:%i') AS heure_creneau,
                 c.statut,
-                s.nom AS service_nom
+                s.nom AS service_nom,
+                s.duree AS service_duree,
+                s.prix AS service_prix
             FROM creneaux_disponibles c
             LEFT JOIN services s ON s.id = c.service_id
             WHERE c.id = ?
@@ -416,6 +495,8 @@ const updateCreneau = async (req, res) => {
 
 const deleteCreneau = async (req, res) => {
     try {
+        await deletePastAvailableCreneaux();
+
         const { id } = req.params;
 
         const [rows] = await pool.query(

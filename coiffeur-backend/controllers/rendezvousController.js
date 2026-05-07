@@ -1,10 +1,24 @@
 const pool = require("../config/db");
 
+/*
+    Supprime automatiquement les créneaux passés non réservés.
+    On garde les créneaux réservés pour ne pas casser les rendez-vous existants.
+*/
+async function deletePastAvailableCreneaux(connection = pool) {
+    await connection.query(`
+        DELETE FROM creneaux_disponibles
+        WHERE statut <> 'reserve'
+          AND TIMESTAMP(date_creneau, heure_creneau) < NOW()
+    `);
+}
+
 const createRendezvous = async (req, res) => {
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
+
+        await deletePastAvailableCreneaux(connection);
 
         const {
             nom_client,
@@ -50,6 +64,7 @@ const createRendezvous = async (req, res) => {
             FROM creneaux_disponibles
             WHERE id = ?
               AND service_id = ?
+              AND TIMESTAMP(date_creneau, heure_creneau) >= NOW()
             FOR UPDATE
             `,
             [creneau_id, service_id]
@@ -59,7 +74,7 @@ const createRendezvous = async (req, res) => {
             await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: "Créneau introuvable pour ce service"
+                message: "Créneau introuvable, expiré ou indisponible pour ce service"
             });
         }
 
