@@ -1,6 +1,11 @@
-import type { ApiResponse, AvailableDate, Creneau } from "@/lib/types";
+import type {
+  ApiResponse,
+  AvailableDate,
+  CreateCreneauDto,
+  Creneau,
+} from "@/lib/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 function getToken() {
   if (typeof window === "undefined") return "";
@@ -33,9 +38,12 @@ export const creneauService = {
 
     const query = searchParams.toString();
 
-    const res = await fetch(`${API_URL}/creneaux/disponibles${query ? `?${query}` : ""}`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${API_URL}/creneaux/disponibles${query ? `?${query}` : ""}`,
+      {
+        cache: "no-store",
+      }
+    );
 
     return res.json();
   },
@@ -49,9 +57,12 @@ export const creneauService = {
     searchParams.append("service_id", String(params.service_id));
     searchParams.append("date", params.date);
 
-    const res = await fetch(`${API_URL}/creneaux/public?${searchParams.toString()}`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${API_URL}/creneaux/public?${searchParams.toString()}`,
+      {
+        cache: "no-store",
+      }
+    );
 
     return res.json();
   },
@@ -83,12 +94,9 @@ export const creneauService = {
     return res.json();
   },
 
-  async create(body: {
-    service_id: string | number;
-    date_creneau: string;
-    heure_creneau: string;
-    statut?: string;
-  }): Promise<ApiResponse<Creneau>> {
+  async create(
+    body: CreateCreneauDto
+  ): Promise<ApiResponse<Creneau | Creneau[]>> {
     const res = await fetch(`${API_URL}/creneaux`, {
       method: "POST",
       headers: getAuthHeaders(),

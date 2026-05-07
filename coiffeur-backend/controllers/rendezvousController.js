@@ -1,8 +1,7 @@
 const pool = require("../config/db");
 
 /*
-    Supprime automatiquement les créneaux passés non réservés.
-    On garde les créneaux réservés pour ne pas casser les rendez-vous existants.
+    Supprime les créneaux passés non réservés.
 */
 async function deletePastAvailableCreneaux(connection = pool) {
     await connection.query(`
@@ -12,12 +11,97 @@ async function deletePastAvailableCreneaux(connection = pool) {
     `);
 }
 
+/*
+    Supprime automatiquement les rendez-vous passés.
+    Important :
+    - Supprime le RDV passé.
+    - Supprime tous les créneaux de la même date/heure, car la réservation bloque tous les services.
+    - Ne supprime pas le client.
+*/
+async function deleteExpiredRendezvous(connection = pool) {
+    const ownConnection = connection === pool;
+    const conn = ownConnection ? await pool.getConnection() : connection;
+
+    try {
+        if (ownConnection) {
+            await conn.beginTransaction();
+        }
+
+        const [expiredRows] = await conn.query(`
+            SELECT 
+                id,
+                creneau_id,
+                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS date_rdv,
+                TIME_FORMAT(heure_rdv, '%H:%i') AS heure_rdv
+            FROM rendezvous
+            WHERE TIMESTAMP(date_rdv, heure_rdv) < NOW()
+            FOR UPDATE
+        `);
+
+        if (expiredRows.length === 0) {
+            if (ownConnection) {
+                await conn.commit();
+            }
+
+            return {
+                deletedRendezvous: 0,
+                deletedCreneaux: 0
+            };
+        }
+
+        const rdvIds = expiredRows.map((row) => row.id);
+
+        let deletedCreneaux = 0;
+
+        for (const row of expiredRows) {
+            const [deleteCreneauxResult] = await conn.query(
+                `
+                DELETE FROM creneaux_disponibles
+                WHERE date_creneau = ?
+                  AND heure_creneau = ?
+                `,
+                [row.date_rdv, row.heure_rdv]
+            );
+
+            deletedCreneaux += deleteCreneauxResult.affectedRows || 0;
+        }
+
+        await conn.query(
+            `
+            DELETE FROM rendezvous
+            WHERE id IN (?)
+            `,
+            [rdvIds]
+        );
+
+        if (ownConnection) {
+            await conn.commit();
+        }
+
+        return {
+            deletedRendezvous: rdvIds.length,
+            deletedCreneaux
+        };
+    } catch (error) {
+        if (ownConnection) {
+            await conn.rollback();
+        }
+
+        throw error;
+    } finally {
+        if (ownConnection) {
+            conn.release();
+        }
+    }
+}
+
 const createRendezvous = async (req, res) => {
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
 
+        await deleteExpiredRendezvous(connection);
         await deletePastAvailableCreneaux(connection);
 
         const {
@@ -88,6 +172,35 @@ const createRendezvous = async (req, res) => {
             });
         }
 
+        /*
+            On verrouille tous les créneaux de la même date/heure.
+            S'il y en a déjà un réservé, on bloque la réservation.
+        */
+        const [sameTimeRows] = await connection.query(
+            `
+            SELECT 
+                id,
+                statut
+            FROM creneaux_disponibles
+            WHERE date_creneau = ?
+              AND heure_creneau = ?
+            FOR UPDATE
+            `,
+            [creneau.date_creneau, creneau.heure_creneau]
+        );
+
+        const hasReservedSameTime = sameTimeRows.some(
+            (row) => row.statut === "reserve"
+        );
+
+        if (hasReservedSameTime) {
+            await connection.rollback();
+            return res.status(409).json({
+                success: false,
+                message: "Cette heure est déjà réservée pour un autre service"
+            });
+        }
+
         let clientId = null;
 
         const [clients] = await connection.query(
@@ -154,9 +267,21 @@ const createRendezvous = async (req, res) => {
             ]
         );
 
+        /*
+            Réservation globale :
+            Tous les créneaux qui ont la même date et la même heure deviennent réservés.
+        */
         await connection.query(
-            "UPDATE creneaux_disponibles SET statut = 'reserve' WHERE id = ?",
-            [creneau_id]
+            `
+            UPDATE creneaux_disponibles
+            SET statut = 'reserve'
+            WHERE date_creneau = ?
+              AND heure_creneau = ?
+            `,
+            [
+                creneau.date_creneau,
+                creneau.heure_creneau
+            ]
         );
 
         const [rdvRows] = await connection.query(
@@ -206,6 +331,9 @@ const createRendezvous = async (req, res) => {
 
 const getAllRendezvous = async (req, res) => {
     try {
+        await deleteExpiredRendezvous();
+        await deletePastAvailableCreneaux();
+
         const { statut, date } = req.query;
 
         let sql = `
@@ -231,7 +359,7 @@ const getAllRendezvous = async (req, res) => {
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
-            WHERE 1 = 1
+            WHERE TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
         `;
 
         const params = [];
@@ -246,7 +374,7 @@ const getAllRendezvous = async (req, res) => {
             params.push(date);
         }
 
-        sql += " ORDER BY r.date_rdv DESC, r.heure_rdv DESC";
+        sql += " ORDER BY r.date_rdv ASC, r.heure_rdv ASC";
 
         const [rows] = await pool.query(sql, params);
 
@@ -265,6 +393,9 @@ const getAllRendezvous = async (req, res) => {
 
 const getRendezvousById = async (req, res) => {
     try {
+        await deleteExpiredRendezvous();
+        await deletePastAvailableCreneaux();
+
         const { id } = req.params;
 
         const [rows] = await pool.query(
@@ -292,6 +423,7 @@ const getRendezvousById = async (req, res) => {
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
             WHERE r.id = ?
+              AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
             `,
             [id]
         );
@@ -299,7 +431,7 @@ const getRendezvousById = async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "Rendez-vous introuvable"
+                message: "Rendez-vous introuvable ou expiré"
             });
         }
 
@@ -322,6 +454,9 @@ const updateRendezvousStatut = async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        await deleteExpiredRendezvous(connection);
+        await deletePastAvailableCreneaux(connection);
+
         const { id } = req.params;
         const { statut } = req.body;
 
@@ -336,7 +471,16 @@ const updateRendezvousStatut = async (req, res) => {
         }
 
         const [rdvRows] = await connection.query(
-            "SELECT * FROM rendezvous WHERE id = ? FOR UPDATE",
+            `
+            SELECT 
+                *,
+                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS clean_date_rdv,
+                TIME_FORMAT(heure_rdv, '%H:%i') AS clean_heure_rdv
+            FROM rendezvous
+            WHERE id = ?
+              AND TIMESTAMP(date_rdv, heure_rdv) >= NOW()
+            FOR UPDATE
+            `,
             [id]
         );
 
@@ -344,7 +488,7 @@ const updateRendezvousStatut = async (req, res) => {
             await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: "Rendez-vous introuvable"
+                message: "Rendez-vous introuvable ou déjà expiré"
             });
         }
 
@@ -355,17 +499,33 @@ const updateRendezvousStatut = async (req, res) => {
             [statut, id]
         );
 
-        if (statut === "annule" && rdv.creneau_id) {
+        if (statut === "annule") {
             await connection.query(
-                "UPDATE creneaux_disponibles SET statut = 'disponible' WHERE id = ?",
-                [rdv.creneau_id]
+                `
+                UPDATE creneaux_disponibles
+                SET statut = 'disponible'
+                WHERE date_creneau = ?
+                  AND heure_creneau = ?
+                `,
+                [
+                    rdv.clean_date_rdv,
+                    rdv.clean_heure_rdv
+                ]
             );
         }
 
-        if ((statut === "confirme" || statut === "termine") && rdv.creneau_id) {
+        if (statut === "confirme" || statut === "termine") {
             await connection.query(
-                "UPDATE creneaux_disponibles SET statut = 'reserve' WHERE id = ?",
-                [rdv.creneau_id]
+                `
+                UPDATE creneaux_disponibles
+                SET statut = 'reserve'
+                WHERE date_creneau = ?
+                  AND heure_creneau = ?
+                `,
+                [
+                    rdv.clean_date_rdv,
+                    rdv.clean_heure_rdv
+                ]
             );
         }
 
@@ -420,10 +580,21 @@ const deleteRendezvous = async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        await deleteExpiredRendezvous(connection);
+        await deletePastAvailableCreneaux(connection);
+
         const { id } = req.params;
 
         const [rdvRows] = await connection.query(
-            "SELECT * FROM rendezvous WHERE id = ? FOR UPDATE",
+            `
+            SELECT 
+                *,
+                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS clean_date_rdv,
+                TIME_FORMAT(heure_rdv, '%H:%i') AS clean_heure_rdv
+            FROM rendezvous
+            WHERE id = ?
+            FOR UPDATE
+            `,
             [id]
         );
 
@@ -442,12 +613,22 @@ const deleteRendezvous = async (req, res) => {
             [id]
         );
 
-        if (rdv.creneau_id) {
-            await connection.query(
-                "UPDATE creneaux_disponibles SET statut = 'disponible' WHERE id = ?",
-                [rdv.creneau_id]
-            );
-        }
+        /*
+            Suppression manuelle d'un RDV :
+            On libère tous les créneaux de la même date/heure.
+        */
+        await connection.query(
+            `
+            UPDATE creneaux_disponibles
+            SET statut = 'disponible'
+            WHERE date_creneau = ?
+              AND heure_creneau = ?
+            `,
+            [
+                rdv.clean_date_rdv,
+                rdv.clean_heure_rdv
+            ]
+        );
 
         await connection.commit();
 
@@ -468,10 +649,31 @@ const deleteRendezvous = async (req, res) => {
     }
 };
 
+const cleanExpiredRendezvous = async (req, res) => {
+    try {
+        const result = await deleteExpiredRendezvous();
+        await deletePastAvailableCreneaux();
+
+        res.json({
+            success: true,
+            message: "Nettoyage des rendez-vous expirés terminé",
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Erreur nettoyage rendez-vous expirés",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createRendezvous,
     getAllRendezvous,
     getRendezvousById,
     updateRendezvousStatut,
-    deleteRendezvous
+    deleteRendezvous,
+    cleanExpiredRendezvous,
+    deleteExpiredRendezvous
 };

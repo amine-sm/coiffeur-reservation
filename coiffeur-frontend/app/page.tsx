@@ -32,6 +32,26 @@ const goldText =
 const goldBg =
   "bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]";
 
+const API_ORIGIN =
+  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+  "http://localhost:4000";
+
+function getServiceImage(service: Service): string {
+  const image = service.image_url || service.image;
+
+  if (!image) return "";
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  if (image.startsWith("/uploads")) {
+    return `${API_ORIGIN}${image}`;
+  }
+
+  return image;
+}
+
 const heroImages = [
   {
     src: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=90&w=2200",
@@ -301,8 +321,7 @@ function HeroSlider() {
                 </>
               ) : (
                 <>
-                  {current.title.split(" ").slice(0, -1).join(" ")}{" "}
-                  <br />
+                  {current.title.split(" ").slice(0, -1).join(" ")} <br />
                   <span className={`font-extralight italic ${goldText}`}>
                     {current.title.split(" ").slice(-1)}
                   </span>
@@ -594,81 +613,180 @@ export default function LuxuryGoldBarber() {
             </div>
           )}
 
-          {!loadingServices && !servicesError && featuredServices.length === 0 && (
-            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-slate-200 bg-white p-10 text-center dark:border-white/5 dark:bg-white/[0.03]">
-              <Scissors className="mb-5 h-10 w-10 text-[#FBBF24]" />
-              <h3 className="mb-2 text-xl font-bold text-slate-950 dark:text-white">
-                Aucun service disponible
-              </h3>
-              <p className="max-w-md text-sm text-slate-600 dark:text-gray-400">
-                Ajoutez vos services depuis l'administration pour les afficher ici.
-              </p>
-            </div>
-          )}
+          {!loadingServices &&
+            !servicesError &&
+            featuredServices.length === 0 && (
+              <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-slate-200 bg-white p-10 text-center dark:border-white/5 dark:bg-white/[0.03]">
+                <Scissors className="mb-5 h-10 w-10 text-[#FBBF24]" />
+                <h3 className="mb-2 text-xl font-bold text-slate-950 dark:text-white">
+                  Aucun service disponible
+                </h3>
+                <p className="max-w-md text-sm text-slate-600 dark:text-gray-400">
+                  Ajoutez vos services depuis l'administration pour les afficher
+                  ici.
+                </p>
+              </div>
+            )}
 
-          {!loadingServices && !servicesError && featuredServices.length > 0 && (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {featuredServices.map((service, index) => (
-                <motion.div
-                  key={service.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ y: -8 }}
-                  className="
-                    group relative overflow-hidden rounded-[40px] border p-8 transition-all hover:shadow-2xl
-                    border-slate-200 bg-white hover:border-amber-400/50
-                    dark:border-white/5 dark:bg-white/5 dark:hover:border-[#F59E0B]/50 dark:hover:bg-white/[0.08]
-                  "
-                >
-                  {service.image && (
-                    <div className="mb-6 h-44 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-black">
-                      <img
-                        src={service.image}
-                        alt={service.nom}
-                        className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105 group-hover:opacity-100 dark:opacity-80"
-                      />
-                    </div>
-                  )}
+          {!loadingServices &&
+            !servicesError &&
+            featuredServices.length > 0 && (
+              <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {featuredServices.map((service, index) => {
+                  const serviceImage = getServiceImage(service);
 
-                  {!service.image && (
-                    <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#F59E0B]/30 bg-amber-50 text-[#B45309] transition-transform group-hover:scale-110 dark:bg-gradient-to-br dark:from-gray-800 dark:to-black dark:text-[#FBBF24]">
-                      {getServiceIcon(index)}
-                    </div>
-                  )}
-
-                  <h3 className="mb-3 font-serif text-2xl font-bold text-slate-950 dark:text-white">
-                    {service.nom}
-                  </h3>
-
-                  <p className="mb-6 min-h-[70px] text-sm leading-relaxed text-slate-600 dark:text-gray-400">
-                    {service.description ||
-                      "Service premium réalisé avec soin et précision."}
-                  </p>
-
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-6 dark:border-white/10">
-                    <div>
-                      <span className={`block text-xl font-bold ${goldText}`}>
-                        {Number(service.prix || 0).toLocaleString("fr-DZ")} DA
-                      </span>
-
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-gray-500">
-                        Durée : {service.duree} min
-                      </span>
-                    </div>
-
-                    <Link
-                      href={`/reservation?service=${service.id}`}
-                      className="rounded-full border border-[#FBBF24]/30 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#B45309] transition-colors hover:bg-[#FBBF24] hover:text-black dark:text-[#FBBF24]"
+                  return (
+                    <motion.div
+                      key={service.id}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ y: -10 }}
+                      className="
+                        group relative overflow-hidden rounded-[38px] border transition-all duration-500
+                        border-slate-200 bg-white shadow-xl shadow-slate-200/70
+                        hover:border-amber-400/60 hover:shadow-2xl hover:shadow-amber-500/20
+                        dark:border-white/10 dark:bg-[#101010] dark:shadow-none dark:hover:border-amber-400/50
+                      "
                     >
-                      Réserver
-                    </Link>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+                      <div className="relative h-64 overflow-hidden">
+                        {serviceImage ? (
+                          <img
+                            src={serviceImage}
+                            alt={service.nom}
+                            className="
+                              h-full w-full object-cover transition-all duration-700
+                              group-hover:scale-110
+                            "
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="
+                              flex h-full w-full items-center justify-center
+                              bg-gradient-to-br from-amber-50 via-white to-slate-100
+                              dark:from-neutral-900 dark:via-black dark:to-neutral-800
+                            "
+                          >
+                            <Scissors className="h-16 w-16 text-amber-400/60" />
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                        <div
+                          className="
+                            absolute left-5 top-5 flex items-center gap-2 rounded-full border px-4 py-2
+                            border-amber-400/40 bg-black/45 text-amber-300 backdrop-blur-md
+                          "
+                        >
+                          <Crown size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                            Prestige
+                          </span>
+                        </div>
+
+                        <div
+                          className="
+                            absolute right-5 top-5 flex items-center gap-2 rounded-full px-4 py-2
+                            bg-white/90 text-slate-900 shadow-lg backdrop-blur-md
+                            dark:bg-black/60 dark:text-white
+                          "
+                        >
+                          <Clock size={14} className="text-amber-500" />
+                          <span className="text-xs font-black">
+                            {service.duree} min
+                          </span>
+                        </div>
+
+                        <div className="absolute bottom-5 left-5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-300">
+                            À partir de
+                          </p>
+                          <div className="mt-1 flex items-end gap-1">
+                            <span className="text-3xl font-black text-white">
+                              {Number(service.prix || 0).toLocaleString(
+                                "fr-DZ"
+                              )}
+                            </span>
+                            <span className="mb-1 text-sm font-bold text-amber-300">
+                              DA
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="relative p-7">
+                        <div className="absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
+
+                        <div className="mb-3 flex items-center gap-2">
+                          <Sparkles size={15} className="text-amber-500" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-600 dark:text-amber-400">
+                            Service Signature
+                          </span>
+                        </div>
+
+                        <h3 className="font-serif text-3xl font-bold text-slate-950 transition group-hover:text-amber-700 dark:text-white dark:group-hover:text-amber-400">
+                          {service.nom}
+                        </h3>
+
+                        <p className="mt-4 min-h-[72px] text-sm leading-relaxed text-slate-600 dark:text-gray-400">
+                          {service.description ||
+                            "Service premium réalisé avec précision, élégance et soin professionnel."}
+                        </p>
+
+                        <div className="mt-7 flex items-center justify-between border-t border-slate-200 pt-5 dark:border-white/10">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="
+                                flex h-11 w-11 items-center justify-center rounded-2xl
+                                bg-amber-500/10 text-amber-600 dark:text-amber-400
+                              "
+                            >
+                              {getServiceIcon(index)}
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-bold text-slate-500 dark:text-gray-500">
+                                Disponibilité
+                              </p>
+                              <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                Disponible
+                              </p>
+                            </div>
+                          </div>
+
+                          <Link
+                            href={`/reservation?service=${service.id}`}
+                            className={`
+                              inline-flex items-center gap-2 rounded-full px-5 py-3
+                              text-[10px] font-black uppercase tracking-widest text-black
+                              transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/30
+                              ${goldBg}
+                            `}
+                          >
+                            Réserver
+                            <ChevronRight size={14} />
+                          </Link>
+                        </div>
+                      </div>
+
+                      <div
+                        className="
+                          pointer-events-none absolute inset-0 rounded-[38px] opacity-0 transition-opacity duration-500
+                          group-hover:opacity-100
+                        "
+                      >
+                        <div className="absolute inset-0 rounded-[38px] shadow-[inset_0_0_55px_rgba(251,191,36,0.18)]" />
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
 
           {!loadingServices && !servicesError && services.length > 6 && (
             <div className="mt-14 flex justify-center">

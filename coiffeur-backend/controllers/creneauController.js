@@ -10,13 +10,10 @@ function isValidTime(value) {
 
 /*
     Supprime automatiquement les créneaux passés non réservés.
-
-    Important :
-    - On supprime uniquement les créneaux qui ne sont pas "reserve".
-    - Les créneaux réservés restent pour garder l'historique lié aux rendez-vous.
+    Les créneaux réservés restent pour garder le lien avec les rendez-vous actifs.
 */
-async function deletePastAvailableCreneaux() {
-    await pool.query(`
+async function deletePastAvailableCreneaux(connection = pool) {
+    await connection.query(`
         DELETE FROM creneaux_disponibles
         WHERE statut <> 'reserve'
           AND TIMESTAMP(date_creneau, heure_creneau) < NOW()
@@ -24,7 +21,7 @@ async function deletePastAvailableCreneaux() {
 }
 
 /*
-    Vérifie côté SQL si une date + heure est passée.
+    Vérifie si une date + heure est déjà passée côté MySQL.
 */
 async function isPastDateTime(date_creneau, heure_creneau) {
     const dateTimeValue = `${date_creneau} ${heure_creneau}:00`;
@@ -212,7 +209,7 @@ const getAllCreneauxAdmin = async (req, res) => {
             LEFT JOIN services s ON s.id = c.service_id
             WHERE TIMESTAMP(c.date_creneau, c.heure_creneau) >= NOW()
                OR c.statut = 'reserve'
-            ORDER BY c.date_creneau DESC, c.heure_creneau DESC
+            ORDER BY c.date_creneau DESC, c.heure_creneau DESC, s.nom ASC
             `
         );
 
@@ -229,21 +226,33 @@ const getAllCreneauxAdmin = async (req, res) => {
     }
 };
 
+/*
+    Nouvelle version :
+    - accepte service_id pour compatibilité ancienne
+    - accepte service_ids pour créer le même créneau pour plusieurs services
+*/
 const createCreneau = async (req, res) => {
     try {
         await deletePastAvailableCreneaux();
 
         const {
             service_id,
+            service_ids,
             date_creneau,
             heure_creneau,
             statut
         } = req.body;
 
-        if (!service_id || !date_creneau || !heure_creneau) {
+        const selectedServiceIds = Array.isArray(service_ids)
+            ? service_ids
+            : service_id
+                ? [service_id]
+                : [];
+
+        if (selectedServiceIds.length === 0 || !date_creneau || !heure_creneau) {
             return res.status(400).json({
                 success: false,
-                message: "Service, date et heure sont obligatoires"
+                message: "Au moins un service, la date et l'heure sont obligatoires"
             });
         }
 
@@ -270,40 +279,92 @@ const createCreneau = async (req, res) => {
             });
         }
 
-        const [services] = await pool.query(
-            "SELECT id FROM services WHERE id = ? AND statut = 'actif'",
-            [service_id]
-        );
+        const cleanServiceIds = [
+            ...new Set(
+                selectedServiceIds
+                    .map((id) => String(id).trim())
+                    .filter(Boolean)
+            )
+        ];
 
-        if (services.length === 0) {
-            return res.status(404).json({
+        if (cleanServiceIds.length === 0) {
+            return res.status(400).json({
                 success: false,
-                message: "Service introuvable ou inactif"
+                message: "Aucun service valide sélectionné"
             });
         }
 
-        const [exists] = await pool.query(
+        const [services] = await pool.query(
             `
-            SELECT id 
-            FROM creneaux_disponibles 
-            WHERE service_id = ?
-              AND date_creneau = ?
-              AND heure_creneau = ?
-            LIMIT 1
+            SELECT id
+            FROM services
+            WHERE id IN (?)
+              AND statut = 'actif'
             `,
-            [service_id, date_creneau, heure_creneau]
+            [cleanServiceIds]
         );
 
-        if (exists.length > 0) {
+        if (services.length !== cleanServiceIds.length) {
+            return res.status(404).json({
+                success: false,
+                message: "Un ou plusieurs services sont introuvables ou inactifs"
+            });
+        }
+
+        /*
+            Si cette date/heure est déjà réservée dans un service,
+            on interdit l'ajout pour éviter une double réservation globale.
+        */
+        const [reservedSameTime] = await pool.query(
+            `
+            SELECT id
+            FROM creneaux_disponibles
+            WHERE date_creneau = ?
+              AND heure_creneau = ?
+              AND statut = 'reserve'
+            LIMIT 1
+            `,
+            [date_creneau, heure_creneau]
+        );
+
+        if (reservedSameTime.length > 0) {
             return res.status(409).json({
                 success: false,
-                message: "Ce créneau existe déjà pour ce service"
+                message: "Cette heure est déjà réservée pour un autre service"
+            });
+        }
+
+        /*
+            Empêche de créer deux fois le même service à la même date/heure.
+        */
+        const [duplicates] = await pool.query(
+            `
+            SELECT service_id
+            FROM creneaux_disponibles
+            WHERE service_id IN (?)
+              AND date_creneau = ?
+              AND heure_creneau = ?
+            `,
+            [cleanServiceIds, date_creneau, heure_creneau]
+        );
+
+        if (duplicates.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Ce créneau existe déjà pour un ou plusieurs services sélectionnés"
             });
         }
 
         const finalStatut = statut || "disponible";
 
-        const [result] = await pool.query(
+        const values = cleanServiceIds.map((id) => [
+            id,
+            date_creneau,
+            heure_creneau,
+            finalStatut
+        ]);
+
+        await pool.query(
             `
             INSERT INTO creneaux_disponibles
             (
@@ -312,9 +373,9 @@ const createCreneau = async (req, res) => {
                 heure_creneau,
                 statut
             )
-            VALUES (?, ?, ?, ?)
+            VALUES ?
             `,
-            [service_id, date_creneau, heure_creneau, finalStatut]
+            [values]
         );
 
         const [rows] = await pool.query(
@@ -330,15 +391,18 @@ const createCreneau = async (req, res) => {
                 s.prix AS service_prix
             FROM creneaux_disponibles c
             LEFT JOIN services s ON s.id = c.service_id
-            WHERE c.id = ?
+            WHERE c.service_id IN (?)
+              AND c.date_creneau = ?
+              AND c.heure_creneau = ?
+            ORDER BY s.nom ASC
             `,
-            [result.insertId]
+            [cleanServiceIds, date_creneau, heure_creneau]
         );
 
         res.status(201).json({
             success: true,
-            message: "Créneau ajouté avec succès",
-            data: rows[0]
+            message: "Créneaux ajoutés avec succès pour les services sélectionnés",
+            data: rows
         });
     } catch (error) {
         res.status(500).json({
@@ -423,6 +487,26 @@ const updateCreneau = async (req, res) => {
             });
         }
 
+        const [reservedSameTime] = await pool.query(
+            `
+            SELECT id
+            FROM creneaux_disponibles
+            WHERE date_creneau = ?
+              AND heure_creneau = ?
+              AND statut = 'reserve'
+              AND id <> ?
+            LIMIT 1
+            `,
+            [date_creneau, heure_creneau, id]
+        );
+
+        if (reservedSameTime.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: "Cette date et cette heure sont déjà réservées"
+            });
+        }
+
         const [duplicates] = await pool.query(
             `
             SELECT id
@@ -439,9 +523,11 @@ const updateCreneau = async (req, res) => {
         if (duplicates.length > 0) {
             return res.status(409).json({
                 success: false,
-                message: "Un autre créneau existe déjà avec cette date et cette heure"
+                message: "Un autre créneau existe déjà avec cette date et cette heure pour ce service"
             });
         }
+
+        const finalStatut = statut || "disponible";
 
         await pool.query(
             `
@@ -452,13 +538,7 @@ const updateCreneau = async (req, res) => {
                 statut = ?
             WHERE id = ?
             `,
-            [
-                service_id,
-                date_creneau,
-                heure_creneau,
-                statut || "disponible",
-                id
-            ]
+            [service_id, date_creneau, heure_creneau, finalStatut, id]
         );
 
         const [rows] = await pool.query(
@@ -499,19 +579,19 @@ const deleteCreneau = async (req, res) => {
 
         const { id } = req.params;
 
-        const [rows] = await pool.query(
+        const [oldRows] = await pool.query(
             "SELECT * FROM creneaux_disponibles WHERE id = ?",
             [id]
         );
 
-        if (rows.length === 0) {
+        if (oldRows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "Créneau introuvable"
             });
         }
 
-        if (rows[0].statut === "reserve") {
+        if (oldRows[0].statut === "reserve") {
             return res.status(400).json({
                 success: false,
                 message: "Impossible de supprimer un créneau réservé"
@@ -543,5 +623,6 @@ module.exports = {
     getAllCreneauxAdmin,
     createCreneau,
     updateCreneau,
-    deleteCreneau
+    deleteCreneau,
+    deletePastAvailableCreneaux
 };

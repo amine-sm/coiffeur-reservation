@@ -12,9 +12,31 @@ import {
 import type { Service } from "@/lib/types";
 import { motion } from "framer-motion";
 
+const API_ORIGIN =
+  process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+  "http://localhost:4000";
+
+function getServiceImage(service: Service): string {
+  const image = service.image_url || service.image;
+
+  if (!image) return "";
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  if (image.startsWith("/uploads")) {
+    return `${API_ORIGIN}${image}`;
+  }
+
+  return image;
+}
+
 export default function ServiceCard({ service }: { service: Service }) {
   const goldText =
     "bg-gradient-to-b from-[#FDE68A] via-[#F59E0B] to-[#B45309] bg-clip-text text-transparent";
+
+  const serviceImage = getServiceImage(service);
 
   const shineVariants = {
     initial: { x: "-100%" },
@@ -42,7 +64,6 @@ export default function ServiceCard({ service }: { service: Service }) {
     >
       {/* ========== ZONE IMAGE ========== */}
       <div className="relative h-[65%] w-full overflow-hidden">
-        {/* Overlay premium compatible clair/sombre */}
         <div
           className="
             absolute inset-0 z-10
@@ -59,14 +80,17 @@ export default function ServiceCard({ service }: { service: Service }) {
           "
         />
 
-        {service.image ? (
+        {serviceImage ? (
           <motion.img
-            src={service.image}
+            src={serviceImage}
             alt={service.nom}
             className="h-full w-full object-cover"
             initial={{ scale: 1 }}
             whileHover={{ scale: 1.1 }}
             transition={{ duration: 0.6 }}
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
           />
         ) : (
           <div

@@ -266,7 +266,11 @@ function ReservationContent() {
 
   useEffect(() => {
     if (selectedService) {
-      setForm((prev) => ({ ...prev, service_id: selectedService }));
+      setForm((prev) => ({
+        ...prev,
+        service_id: selectedService,
+        creneau_id: "",
+      }));
     }
   }, [selectedService]);
 
@@ -290,7 +294,13 @@ function ReservationContent() {
     setForm((prev) => ({
       ...prev,
       [name]: value,
-      ...(name === "service_id" ? { date_rdv: "", creneau_id: "" } : {}),
+
+      /*
+        IMPORTANT :
+        Quand on change le service, on garde la date sélectionnée.
+        On supprime seulement l'heure choisie, car les horaires changent selon le service.
+      */
+      ...(name === "service_id" ? { creneau_id: "" } : {}),
     }));
   }
 
@@ -363,6 +373,7 @@ function ReservationContent() {
         setShowSuccess(true);
 
         const oldServiceId = form.service_id;
+        const oldDate = form.date_rdv;
 
         setForm({
           nom_client: "",
@@ -371,12 +382,12 @@ function ReservationContent() {
           telephone: "",
           service_id: oldServiceId,
           creneau_id: "",
-          date_rdv: "",
+          date_rdv: oldDate,
           note: "",
         });
 
-        setCreneaux([]);
         await loadAvailableDates(oldServiceId);
+        await loadCreneaux(oldServiceId, oldDate);
       } else {
         setMessage("❌ " + (res.message || "Erreur lors de la réservation."));
       }
@@ -397,6 +408,14 @@ function ReservationContent() {
     () => creneaux.find((c) => String(c.id) === String(form.creneau_id)),
     [creneaux, form.creneau_id]
   );
+
+  const selectedDateIsInAvailableDates = useMemo(() => {
+    if (!form.date_rdv) return true;
+
+    return availableDates.some(
+      (item) => cleanDate(item.date_creneau) === form.date_rdv
+    );
+  }, [availableDates, form.date_rdv]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -632,6 +651,13 @@ function ReservationContent() {
                         {selectedServiceInfo.prix} DZD
                       </span>
                     </p>
+
+                    {form.date_rdv && (
+                      <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        Le jour sélectionné est conservé :{" "}
+                        {formatLongDate(form.date_rdv)}
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -648,42 +674,51 @@ function ReservationContent() {
                 ) : availableDates.length === 0 ? (
                   <WarningBox text="Aucun jour disponible pour ce service." />
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                    {availableDates.map((item) => {
-                      const dateValue = cleanDate(item.date_creneau);
-                      const totalDisponibles = Number(
-                        item.total_disponibles || 0
-                      );
-                      const isSelected = form.date_rdv === dateValue;
+                  <>
+                    {form.date_rdv && !selectedDateIsInAvailableDates && (
+                      <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                        Le jour sélectionné reste affiché, mais ce service n’a
+                        peut-être pas de créneau disponible ce jour-là.
+                      </div>
+                    )}
 
-                      return (
-                        <button
-                          type="button"
-                          key={dateValue}
-                          onClick={() => selectDate(dateValue)}
-                          className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
-                            isSelected
-                              ? `${goldBg} border-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]`
-                              : "border-slate-200 bg-white text-slate-950 hover:-translate-y-1 hover:border-amber-500/50 dark:border-white/10 dark:bg-black/40 dark:text-white"
-                          }`}
-                        >
-                          <p className="text-sm font-bold capitalize">
-                            {formatDateLabel(dateValue)}
-                          </p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {availableDates.map((item) => {
+                        const dateValue = cleanDate(item.date_creneau);
+                        const totalDisponibles = Number(
+                          item.total_disponibles || 0
+                        );
+                        const isSelected = form.date_rdv === dateValue;
 
-                          <p
-                            className={`mt-2 text-xs font-bold ${
+                        return (
+                          <button
+                            type="button"
+                            key={dateValue}
+                            onClick={() => selectDate(dateValue)}
+                            className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
                               isSelected
-                                ? "text-black/80"
-                                : "text-amber-600 dark:text-amber-400"
+                                ? `${goldBg} border-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]`
+                                : "border-slate-200 bg-white text-slate-950 hover:-translate-y-1 hover:border-amber-500/50 dark:border-white/10 dark:bg-black/40 dark:text-white"
                             }`}
                           >
-                            {totalDisponibles} dispo.
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <p className="text-sm font-bold capitalize">
+                              {formatDateLabel(dateValue)}
+                            </p>
+
+                            <p
+                              className={`mt-2 text-xs font-bold ${
+                                isSelected
+                                  ? "text-black/80"
+                                  : "text-amber-600 dark:text-amber-400"
+                              }`}
+                            >
+                              {totalDisponibles} dispo.
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -711,7 +746,7 @@ function ReservationContent() {
                 ) : loadingCreneaux ? (
                   <LoadingBox text="Chargement des horaires..." />
                 ) : creneaux.length === 0 ? (
-                  <WarningBox text="Aucun créneau disponible pour cette date." />
+                  <WarningBox text="Aucun créneau disponible pour cette date avec ce service." />
                 ) : (
                   <div
                     className="

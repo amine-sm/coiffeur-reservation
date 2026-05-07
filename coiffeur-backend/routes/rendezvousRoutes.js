@@ -6,22 +6,17 @@ const {
     getAllRendezvous,
     getRendezvousById,
     updateRendezvousStatut,
-    deleteRendezvous
+    deleteRendezvous,
+    cleanExpiredRendezvous
 } = require("../controllers/rendezvousController");
 
-const { verifyAdmin } = require("../middleware/authMiddleware");
-
-/*
-    Public client
-*/
+router.get("/", getAllRendezvous);
 router.post("/", createRendezvous);
 
-/*
-    Admin
-*/
-router.get("/", verifyAdmin, getAllRendezvous);
-router.get("/:id", verifyAdmin, getRendezvousById);
-router.patch("/:id/statut", verifyAdmin, updateRendezvousStatut);
-router.delete("/:id", verifyAdmin, deleteRendezvous);
+router.delete("/expired/clean", cleanExpiredRendezvous);
+
+router.get("/:id", getRendezvousById);
+router.patch("/:id/statut", updateRendezvousStatut);
+router.delete("/:id", deleteRendezvous);
 
 module.exports = router;

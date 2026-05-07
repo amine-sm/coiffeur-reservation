@@ -1,4 +1,40 @@
 const pool = require("../config/db");
+const fs = require("fs");
+const path = require("path");
+
+/*
+    Construire l'URL complète de l'image.
+    Exemple :
+    image en base = /uploads/services/photo-123.jpg
+    retourne = http://localhost:4000/uploads/services/photo-123.jpg
+*/
+function buildImageUrl(req, imagePath) {
+    if (!imagePath) return null;
+
+    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return imagePath;
+    }
+
+    return `${req.protocol}://${req.get("host")}${imagePath}`;
+}
+
+/*
+    Supprimer une ancienne image locale du serveur.
+*/
+function deleteLocalImage(imagePath) {
+    if (!imagePath) return;
+
+    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return;
+    }
+
+    const cleanPath = imagePath.replace(/^\/+/, "");
+    const fullPath = path.join(__dirname, "..", cleanPath);
+
+    if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+    }
+}
 
 const getAllServices = async (req, res) => {
     try {
@@ -6,9 +42,14 @@ const getAllServices = async (req, res) => {
             "SELECT * FROM services ORDER BY id DESC"
         );
 
+        const data = rows.map((service) => ({
+            ...service,
+            image_url: buildImageUrl(req, service.image)
+        }));
+
         res.json({
             success: true,
-            data: rows
+            data
         });
     } catch (error) {
         res.status(500).json({
@@ -35,9 +76,14 @@ const getServiceById = async (req, res) => {
             });
         }
 
+        const service = {
+            ...rows[0],
+            image_url: buildImageUrl(req, rows[0].image)
+        };
+
         res.json({
             success: true,
-            data: rows[0]
+            data: service
         });
     } catch (error) {
         res.status(500).json({
@@ -50,7 +96,7 @@ const getServiceById = async (req, res) => {
 
 const createService = async (req, res) => {
     try {
-        const { nom, duree, prix, image, description } = req.body;
+        const { nom, duree, prix, description, statut } = req.body;
 
         if (!nom || !duree || !prix) {
             return res.status(400).json({
@@ -59,10 +105,33 @@ const createService = async (req, res) => {
             });
         }
 
+        let image = null;
+
+        if (req.file) {
+            image = `/uploads/services/${req.file.filename}`;
+        }
+
         const [result] = await pool.query(
-            `INSERT INTO services (nom, duree, prix, image, description)
-             VALUES (?, ?, ?, ?, ?)`,
-            [nom, duree, prix, image || null, description || null]
+            `
+            INSERT INTO services 
+            (
+                nom, 
+                duree, 
+                prix, 
+                image, 
+                description,
+                statut
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            `,
+            [
+                nom,
+                duree,
+                prix,
+                image,
+                description || null,
+                statut || "actif"
+            ]
         );
 
         const [rows] = await pool.query(
@@ -70,12 +139,21 @@ const createService = async (req, res) => {
             [result.insertId]
         );
 
+        const service = {
+            ...rows[0],
+            image_url: buildImageUrl(req, rows[0].image)
+        };
+
         res.status(201).json({
             success: true,
             message: "Service ajouté avec succès",
-            data: rows[0]
+            data: service
         });
     } catch (error) {
+        if (req.file) {
+            deleteLocalImage(`/uploads/services/${req.file.filename}`);
+        }
+
         res.status(500).json({
             success: false,
             message: "Erreur ajout service",
@@ -87,7 +165,7 @@ const createService = async (req, res) => {
 const updateService = async (req, res) => {
     try {
         const { id } = req.params;
-        const { nom, duree, prix, image, description, statut } = req.body;
+        const { nom, duree, prix, description, statut } = req.body;
 
         if (!nom || !duree || !prix) {
             return res.status(400).json({
@@ -96,20 +174,46 @@ const updateService = async (req, res) => {
             });
         }
 
+        const [oldRows] = await pool.query(
+            "SELECT * FROM services WHERE id = ?",
+            [id]
+        );
+
+        if (oldRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Service introuvable"
+            });
+        }
+
+        const oldService = oldRows[0];
+
+        let image = oldService.image;
+
+        if (req.file) {
+            image = `/uploads/services/${req.file.filename}`;
+
+            if (oldService.image) {
+                deleteLocalImage(oldService.image);
+            }
+        }
+
         const [result] = await pool.query(
-            `UPDATE services
-             SET nom = ?,
-                 duree = ?,
-                 prix = ?,
-                 image = ?,
-                 description = ?,
-                 statut = ?
-             WHERE id = ?`,
+            `
+            UPDATE services
+            SET nom = ?,
+                duree = ?,
+                prix = ?,
+                image = ?,
+                description = ?,
+                statut = ?
+            WHERE id = ?
+            `,
             [
                 nom,
                 duree,
                 prix,
-                image || null,
+                image,
                 description || null,
                 statut || "actif",
                 id
@@ -128,12 +232,21 @@ const updateService = async (req, res) => {
             [id]
         );
 
+        const service = {
+            ...rows[0],
+            image_url: buildImageUrl(req, rows[0].image)
+        };
+
         res.json({
             success: true,
             message: "Service modifié avec succès",
-            data: rows[0]
+            data: service
         });
     } catch (error) {
+        if (req.file) {
+            deleteLocalImage(`/uploads/services/${req.file.filename}`);
+        }
+
         res.status(500).json({
             success: false,
             message: "Erreur modification service",
@@ -145,6 +258,20 @@ const updateService = async (req, res) => {
 const deleteService = async (req, res) => {
     try {
         const { id } = req.params;
+
+        const [oldRows] = await pool.query(
+            "SELECT * FROM services WHERE id = ?",
+            [id]
+        );
+
+        if (oldRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Service introuvable"
+            });
+        }
+
+        const oldService = oldRows[0];
 
         const [hasRdv] = await pool.query(
             "SELECT id FROM rendezvous WHERE service_id = ? LIMIT 1",
@@ -168,6 +295,10 @@ const deleteService = async (req, res) => {
                 success: false,
                 message: "Service introuvable"
             });
+        }
+
+        if (oldService.image) {
+            deleteLocalImage(oldService.image);
         }
 
         res.json({

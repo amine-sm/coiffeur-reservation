@@ -8,10 +8,11 @@ export type ApiResponse<T = unknown> = {
 export type Service = {
   id: number;
   nom: string;
-  description?: string;
+  description?: string | null;
   duree: number;
   prix: number;
-  image?: string;
+  image?: string | null;
+  image_url?: string | null;
   statut?: "actif" | "inactif" | string;
 };
 
@@ -20,8 +21,8 @@ export type CreateServiceDto = {
   description?: string;
   duree: number;
   prix: number;
-  image?: string;
   statut?: "actif" | "inactif" | string;
+  image?: File | null;
 };
 
 export type UpdateServiceDto = Partial<CreateServiceDto>;
@@ -35,6 +36,14 @@ export type Creneau = {
   service_nom?: string;
   service_duree?: number;
   service_prix?: number;
+};
+
+export type CreateCreneauDto = {
+  service_id?: string | number;
+  service_ids?: Array<string | number>;
+  date_creneau: string;
+  heure_creneau: string;
+  statut?: string;
 };
 
 export type AvailableDate = {
