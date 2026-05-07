@@ -1,4 +1,4 @@
-export type ApiResponse<T> = {
+export type ApiResponse<T = unknown> = {
   success: boolean;
   message?: string;
   data?: T;
@@ -14,6 +14,17 @@ export type Service = {
   image?: string;
   statut?: "actif" | "inactif" | string;
 };
+
+export type CreateServiceDto = {
+  nom: string;
+  description?: string;
+  duree: number;
+  prix: number;
+  image?: string;
+  statut?: "actif" | "inactif" | string;
+};
+
+export type UpdateServiceDto = Partial<CreateServiceDto>;
 
 export type Creneau = {
   id: number;
@@ -32,7 +43,11 @@ export type AvailableDate = {
   total_disponibles: number;
 };
 
-export type RendezvousStatut = "en_attente" | "confirme" | "termine" | "annule";
+export type RendezvousStatut =
+  | "en_attente"
+  | "confirme"
+  | "termine"
+  | "annule";
 
 export type Rendezvous = {
   id: number;

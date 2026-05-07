@@ -1,483 +1,421 @@
+"use client";
+
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import type { ReactNode } from "react";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import {
-  ArrowRight,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
+  Scissors,
+  Crown,
+  ChevronRight,
+  Sparkles,
   MapPin,
   Phone,
-  Scissors,
-  ShieldCheck,
-  Sparkles,
+  Clock,
+  Loader2,
+  AlertCircle,
+  Diamond,
+  Award,
+  Users,
   Star,
-  UserCheck,
-  BadgeCheck,
-  Crown,
-  Gem,
-  Sparkle,
+  Quote,
+  Eye,
+  Instagram,
+  Facebook,
+  MessageCircle,
 } from "lucide-react";
+import { FaFacebookF, FaInstagram, FaWhatsapp } from "react-icons/fa";
+import Navbar from "@/components/Navbar";
+import { serviceService } from "@/lib/serviceService";
+import type { Service } from "@/lib/types";
 
-export default function HomePage() {
+// ========== STYLES & ANIMATIONS ==========
+const goldText =
+  "bg-gradient-to-b from-[#FDE68A] via-[#F59E0B] to-[#B45309] bg-clip-text text-transparent";
+const goldBg =
+  "bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]";
+const goldBorder = "border-[#F59E0B]/30";
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.8, ease: [0.21, 0.45, 0.32, 0.9] },
+  },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 },
+  },
+};
+
+const scaleOnHover = {
+  whileHover: { scale: 1.02, transition: { duration: 0.2 } },
+  whileTap: { scale: 0.98 },
+};
+
+function getServiceIcon(index: number) {
+  const icons = [
+    <Scissors key="scissors" className="h-6 w-6" />,
+    <Sparkles key="sparkles" className="h-6 w-6" />,
+    <Crown key="crown" className="h-6 w-6" />,
+    <Diamond key="diamond" className="h-6 w-6" />,
+  ];
+  return icons[index % icons.length];
+}
+
+// ========== COMPOSANT CARD VALEUR ==========
+const ValueCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <motion.div
+    variants={fadeInUp}
+    whileHover={{ y: -8 }}
+    className="group rounded-3xl border border-white/5 bg-white/5 p-8 backdrop-blur-sm transition-all hover:border-[#F59E0B]/40 hover:bg-white/10"
+  >
+    <div className="mb-6 inline-flex rounded-2xl bg-[#F59E0B]/10 p-4 text-[#FBBF24] transition-transform group-hover:scale-110">
+      {icon}
+    </div>
+    <h3 className="mb-3 text-xl font-bold text-white">{title}</h3>
+    <p className="text-sm leading-relaxed text-gray-400">{description}</p>
+  </motion.div>
+);
+
+// ========== COMPOSANT TÉMOIGNAGE ==========
+const TestimonialCard = ({ name, role, content, rating, image }: { name: string; role: string; content: string; rating: number; image: string }) => (
+  <motion.div
+    variants={fadeInUp}
+    whileHover={{ y: -5 }}
+    className="relative rounded-3xl border border-white/5 bg-gradient-to-br from-white/5 to-transparent p-8 backdrop-blur-sm"
+  >
+    <Quote className="absolute right-6 top-6 h-12 w-12 text-[#F59E0B]/20" />
+    <div className="mb-6 flex items-center gap-4">
+      <img src={image} alt={name} className="h-14 w-14 rounded-full object-cover ring-2 ring-[#F59E0B]/30" />
+      <div>
+        <h4 className="font-bold text-white">{name}</h4>
+        <p className="text-xs text-gray-400">{role}</p>
+      </div>
+    </div>
+    <div className="mb-4 flex gap-1">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} size={14} className={i < rating ? "fill-[#FBBF24] text-[#FBBF24]" : "text-gray-600"} />
+      ))}
+    </div>
+    <p className="relative z-10 text-sm italic leading-relaxed text-gray-300">"{content}"</p>
+  </motion.div>
+);
+
+// ========== COMPOSANT IMAGE GALERIE ==========
+const GalleryImage = ({ src, alt, index }: { src: string; alt: string; index: number }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.9 }}
+    whileInView={{ opacity: 1, scale: 1 }}
+    viewport={{ once: true }}
+    transition={{ delay: index * 0.1 }}
+    whileHover={{ scale: 1.02 }}
+    className="group relative overflow-hidden rounded-2xl"
+  >
+    <img src={src} alt={alt} className="h-80 w-full object-cover transition duration-700 group-hover:scale-110" />
+    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
+    <Eye className="absolute bottom-4 right-4 h-6 w-6 text-white opacity-0 transition duration-300 group-hover:opacity-100" />
+  </motion.div>
+);
+
+export default function LuxuryGoldBarber() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadServices() {
+      try {
+        setLoadingServices(true);
+        setServicesError(null);
+        const response = await serviceService.getAll();
+        if (!isMounted) return;
+        if (!response.success) {
+          setServicesError(response.message || response.error || "Impossible de charger les services.");
+          setServices([]);
+          return;
+        }
+        const activeServices = (response.data || []).filter((service) => service.statut !== "inactif");
+        setServices(activeServices);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Erreur chargement services:", error);
+        setServicesError("Erreur de connexion avec le serveur.");
+        setServices([]);
+      } finally {
+        if (isMounted) setLoadingServices(false);
+      }
+    }
+    loadServices();
+    return () => { isMounted = false; };
+  }, []);
+
+  const featuredServices = useMemo(() => services.slice(0, 6), [services]);
+
+  // Données statiques pour les sections supplémentaires
+  const values = [
+    { icon: <Diamond size={24} />, title: "Savoir-faire d'exception", description: "Des barbiers formés aux techniques françaises et italiennes, maîtrisant l'art de la coupe et du rasage." },
+    { icon: <Award size={24} />, title: "Produits haut de gamme", description: "Sélection rigoureuse des meilleurs produits de coiffure et barbier, sans compromis sur la qualité." },
+    { icon: <Users size={24} />, title: "Service personnalisé", description: "Chaque client reçoit une attention unique, de l'accueil à la fin de la prestation." },
+  ];
+
+  const testimonials = [
+    { name: "Karim B.", role: "Chef d'entreprise", content: "Un lieu d'exception où le souci du détail est poussé à l'extrême. Je n'ai jamais eu une coupe aussi parfaite.", rating: 5, image: "https://randomuser.me/api/portraits/men/32.jpg" },
+    { name: "Mehdi L.", role: "Avocat", content: "L'ambiance est feutrée, le personnel attentif. Le résultat est toujours à la hauteur de mes attentes.", rating: 5, image: "https://randomuser.me/api/portraits/men/45.jpg" },
+    { name: "Sofia R.", role: "Cliente régulière", content: "Je viens pour les soins du cuir chevelu. Un moment de détente absolu dans un cadre magnifique.", rating: 4, image: "https://randomuser.me/api/portraits/women/68.jpg" },
+  ];
+
+  const galleryImages = [
+    "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=800",
+    "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&q=80&w=800",
+    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=800",
+    "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=800",
+    "https://images.unsplash.com/photo-1621799754526-a0d52c49fad5?auto=format&fit=crop&q=80&w=800",
+    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=800",
+  ];
+
   return (
-    <main className="min-h-screen overflow-hidden bg-[#F8FAFB] text-slate-900 selection:bg-[#1B4F59] selection:text-white">
+    <main className="min-h-screen bg-[#050505] selection:bg-[#FBBF24] selection:text-black overflow-x-hidden">
       <Navbar />
 
-      {/* ----- HERO ----- */}
-      <section className="relative overflow-hidden px-5 pb-24 pt-40 lg:pb-32 lg:pt-52">
-        {/* Fond décoratif sophistiqué */}
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -left-32 -top-32 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-[#1B4F59]/20 via-[#1B4F59]/5 to-transparent blur-3xl" />
-          <div className="absolute -right-32 top-1/3 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-[#FE5737]/15 via-[#FE5737]/5 to-transparent blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-[400px] w-[400px] rounded-full bg-gradient-to-tr from-[#D4AF37]/10 to-transparent blur-3xl" />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMxQjRGNTkiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-60" />
+      {/* ========== HERO AVEC PARALLAXE ========== */}
+      <section ref={heroRef} className="relative flex min-h-screen items-center justify-center overflow-hidden px-6">
+        <motion.div className="absolute inset-0 -z-10" style={{ opacity: heroOpacity, scale: heroScale }}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(217,119,6,0.15)_0%,rgba(0,0,0,1)_80%)] z-10" />
+          <img
+            src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=2000"
+            className="h-full w-full object-cover grayscale opacity-40"
+            alt="Luxury Barber"
+          />
+          <div className="absolute inset-0 bg-black/50" />
+        </motion.div>
+
+        <div className="max-w-7xl text-center">
+          <motion.div variants={staggerContainer} initial="hidden" animate="visible">
+            <motion.div variants={fadeInUp} className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#F59E0B]/30 bg-black/30 px-4 py-1.5 backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FBBF24] opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#FBBF24]" />
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-300">Ouvert à Hydra • Alger</span>
+            </motion.div>
+
+            <motion.h1 variants={fadeInUp} className="font-serif text-6xl font-light leading-[1.1] text-white sm:text-8xl lg:text-[9rem]">
+              L'Éclat du <br />
+              <span className={`font-extralight italic ${goldText}`}>Prestige.</span>
+            </motion.h1>
+
+            <motion.p variants={fadeInUp} className="mx-auto mt-8 max-w-2xl text-base font-light leading-relaxed text-gray-400 sm:text-xl">
+              Plus qu'une coupe, une distinction. Découvrez l'excellence de la coiffure masculine dans un cadre où l'or noir rencontre le savoir-faire artisanal.
+            </motion.p>
+
+            <motion.div variants={fadeInUp} className="mt-12 flex flex-col items-center justify-center gap-6 sm:flex-row">
+              <Link href="/reservation" className={`group flex items-center gap-4 rounded-full px-10 py-5 text-[11px] font-black uppercase tracking-widest text-black transition-all hover:-translate-y-1 active:scale-95 shadow-2xl shadow-[#F59E0B]/20 ${goldBg}`}>
+                Réserver mon fauteuil <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link href="#services" className="rounded-full border border-white/20 px-8 py-5 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:border-[#FBBF24] hover:text-[#FBBF24]">
+                Découvrir
+              </Link>
+            </motion.div>
+          </motion.div>
         </div>
 
-        <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="relative z-10">
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#1B4F59]/20 bg-white/90 px-5 py-2.5 shadow-lg shadow-[#1B4F59]/5 backdrop-blur-md animate-fade-up">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FE5737] opacity-70" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-[#FE5737]" />
-              </span>
-              <span className="text-[11px] font-black uppercase tracking-[0.24em] text-[#1B4F59]">
-                Salon de coiffure d'exception
-              </span>
-              <Crown size={14} className="ml-1 text-[#D4AF37]" />
+        {/* Indicateur de scroll */}
+        <motion.div className="absolute bottom-10 left-1/2 -translate-x-1/2" animate={{ y: [0, 10, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+          <div className="h-12 w-6 rounded-full border-2 border-white/30 flex justify-center">
+            <div className="mt-2 h-2 w-1 rounded-full bg-white/60" />
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ========== NOS VALEURS ========== */}
+      <section className="relative z-10 -mt-24 px-6">
+        <div className="mx-auto max-w-7xl">
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="grid gap-6 md:grid-cols-3">
+            {values.map((value, i) => (
+              <ValueCard key={i} {...value} />
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ========== SERVICES API ========== */}
+      <section id="services" className="bg-[#0A0A0A] py-32 lg:py-48">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-24 grid items-end gap-16 lg:grid-cols-2">
+            <div>
+              <span className="mb-4 block text-[11px] font-black uppercase tracking-[0.3em] text-[#FBBF24]">Le Menu Privé</span>
+              <h2 className="font-serif text-5xl font-light text-white sm:text-7xl">
+                Expériences <br />
+                <span className={`font-extralight italic ${goldText}`}>Sur-mesure</span>
+              </h2>
             </div>
-
-            <h1 className="animate-fade-up-delay text-6xl font-black tracking-[-0.04em] text-slate-950 sm:text-7xl lg:text-8xl">
-              Votre style,{" "}
-              <span className="relative">
-                <span className="bg-gradient-to-r from-[#1B4F59] via-[#2E7D8A] to-[#FE5737] bg-clip-text text-transparent">
-                  une signature.
-                </span>
-                <span className="absolute -bottom-2 left-0 h-1.5 w-full rounded-full bg-gradient-to-r from-[#1B4F59] via-[#2E7D8A] to-[#FE5737] opacity-30 blur-sm" />
-              </span>
-            </h1>
-
-            <p className="animate-fade-up-delay-2 mt-8 max-w-xl text-lg leading-8 text-slate-600 sm:text-xl">
-              Coupe, barbe, soins et bien plus encore dans un cadre pensé pour
-              votre confort. Réservation fluide, service soigné et ambiance
-              moderne.
-            </p>
-
-            <div className="animate-fade-up-delay-3 mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href="/reservation"
-                className="group relative inline-flex items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-[#FE5737] to-[#FF7F5C] px-9 py-4.5 text-sm font-black text-white shadow-2xl shadow-[#FE5737]/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[#FE5737]/40 hover:scale-[1.02] active:scale-95"
-              >
-                <span className="absolute inset-0 -z-0 bg-gradient-to-r from-[#FF7F5C] to-[#FE5737] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="relative z-10 flex items-center gap-2">
-                  Réserver maintenant
-                  <CalendarDays size={18} className="transition-transform duration-500 group-hover:rotate-12" />
-                </span>
-              </Link>
-
-              <Link
-                href="/services"
-                className="group inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-9 py-4.5 text-sm font-black text-slate-800 shadow-lg transition-all duration-500 hover:-translate-y-1 hover:border-[#1B4F59]/40 hover:text-[#1B4F59] hover:shadow-xl"
-              >
-                Nos services
-                <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            </div>
-
-            <div className="mt-10 flex flex-wrap gap-3">
-              <HeroBadge icon={<ShieldCheck size={16} />} text="Hygiène irréprochable" />
-              <HeroBadge icon={<Clock3 size={16} />} text="RDV express" />
-              <HeroBadge icon={<Gem size={16} />} text="Service haut de gamme" />
-            </div>
+            <p className="max-w-md pb-2 text-gray-500">Chaque détail est pensé pour l'homme moderne. Nos services sont chargés directement depuis votre système de réservation.</p>
           </div>
 
-          <div className="relative animate-fade-up-delay-2 lg:translate-x-8">
-            <div className="absolute -left-10 -top-10 hidden h-36 w-36 rounded-[48px] bg-gradient-to-br from-[#FE5737]/15 to-[#1B4F59]/15 blur-2xl lg:block" />
-            <div className="absolute -bottom-10 -right-10 hidden h-48 w-48 rounded-[48px] bg-gradient-to-br from-[#1B4F59]/20 to-[#D4AF37]/10 blur-2xl lg:block" />
+          {loadingServices && (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-white/5 bg-white/[0.03] p-10 text-center">
+              <Loader2 className="mb-5 h-10 w-10 animate-spin text-[#FBBF24]" />
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">Chargement des services...</p>
+            </div>
+          )}
 
-            <div className="group relative overflow-hidden rounded-[48px] border border-white/80 bg-white p-3 shadow-[0_35px_100px_rgba(27,79,89,0.15)] backdrop-blur-sm transition-all duration-700 hover:shadow-[0_45px_120px_rgba(27,79,89,0.2)]">
-              <div className="relative h-[520px] overflow-hidden rounded-[38px]">
-                <img
-                  src="https://images.unsplash.com/photo-1621605815841-aa8975485d49?auto=format&fit=crop&q=80&w=1200"
-                  alt="Salon de coiffure Prestige"
-                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
+          {!loadingServices && servicesError && (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-red-500/20 bg-red-500/5 p-10 text-center">
+              <AlertCircle className="mb-5 h-10 w-10 text-red-400" />
+              <h3 className="mb-2 text-xl font-bold text-white">Services indisponibles</h3>
+              <p className="max-w-md text-sm text-gray-400">{servicesError}</p>
+            </div>
+          )}
 
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-slate-950/10 to-transparent" />
+          {!loadingServices && !servicesError && featuredServices.length === 0 && (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-white/5 bg-white/[0.03] p-10 text-center">
+              <Scissors className="mb-5 h-10 w-10 text-[#FBBF24]" />
+              <h3 className="mb-2 text-xl font-bold text-white">Aucun service disponible</h3>
+              <p className="max-w-md text-sm text-gray-400">Ajoutez vos services depuis l'administration pour les afficher ici.</p>
+            </div>
+          )}
 
-                {/* Badge ouverture */}
-                <div className="absolute left-6 top-6 rounded-2xl border border-white/40 bg-white/90 px-5 py-3 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:scale-105">
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#FE5737]">
-                    Ouvert
-                  </p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    Aujourd’hui 09h - 18h
-                  </p>
-                </div>
-
-                {/* Carte info */}
-                <div className="absolute bottom-6 left-6 right-6 rounded-[32px] border border-white/60 bg-white/85 p-5 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:bg-white/95">
-                  <div className="flex items-center justify-between gap-4">
+          {!loadingServices && !servicesError && featuredServices.length > 0 && (
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {featuredServices.map((service, index) => (
+                <motion.div
+                  key={service.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -8 }}
+                  className="group relative overflow-hidden rounded-[40px] border border-white/5 bg-white/5 p-8 transition-all hover:border-[#F59E0B]/50 hover:bg-white/[0.08] hover:shadow-2xl"
+                >
+                  {service.image && (
+                    <div className="mb-6 h-44 overflow-hidden rounded-2xl border border-white/10 bg-black">
+                      <img src={service.image} alt={service.nom} className="h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105 group-hover:opacity-100" />
+                    </div>
+                  )}
+                  {!service.image && (
+                    <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#F59E0B]/30 bg-gradient-to-br from-gray-800 to-black text-[#FBBF24] transition-transform group-hover:scale-110">
+                      {getServiceIcon(index)}
+                    </div>
+                  )}
+                  <h3 className="mb-3 font-serif text-2xl font-bold text-white">{service.nom}</h3>
+                  <p className="mb-6 min-h-[70px] text-sm leading-relaxed text-gray-400">{service.description || "Service premium réalisé avec soin et précision."}</p>
+                  <div className="flex items-center justify-between border-t border-white/10 pt-6">
                     <div>
-                      <p className="text-lg font-black text-slate-950">
-                        Coiffeur Prestige
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-500">
-                        <MapPin size={16} className="text-[#1B4F59]" />
-                        Alger, Algérie
-                      </div>
+                      <span className={`block text-xl font-bold ${goldText}`}>{Number(service.prix || 0).toLocaleString("fr-DZ")} DA</span>
+                      <span className="mt-1 block text-xs text-gray-500">Durée : {service.duree} min</span>
                     </div>
-
-                    <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#FE5737]/15 to-[#FE5737]/10 px-4 py-2 shadow-inner">
-                      <Star size={16} className="fill-[#FE5737] text-[#FE5737]" />
-                      <span className="text-base font-black text-[#FE5737]">4.9</span>
-                    </div>
+                    <Link href={`/reservation?service=${service.id}`} className="rounded-full border border-[#FBBF24]/30 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#FBBF24] transition-colors hover:bg-[#FBBF24] hover:text-black">
+                      Réserver
+                    </Link>
                   </div>
-                </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {!loadingServices && !servicesError && services.length > 6 && (
+            <div className="mt-14 flex justify-center">
+              <Link href="/services" className="rounded-full border border-white/10 px-8 py-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:border-[#FBBF24] hover:text-[#FBBF24]">
+                Voir tous les services
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ========== GALERIE ========== */}
+      <section className="py-32">
+        <div className="mx-auto max-w-7xl px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16 text-center">
+            <span className="mb-4 block text-[11px] font-black uppercase tracking-[0.3em] text-[#FBBF24]">Notre Art en Images</span>
+            <h2 className="font-serif text-4xl font-light text-white sm:text-6xl">L'Élégance <span className={goldText}>capturée</span></h2>
+          </motion.div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {galleryImages.map((src, i) => (
+              <GalleryImage key={i} src={src} alt={`Galerie ${i + 1}`} index={i} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========== TÉMOIGNAGES ========== */}
+      <section className="bg-[#0A0A0A] py-32">
+        <div className="mx-auto max-w-7xl px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16 text-center">
+            <span className="mb-4 block text-[11px] font-black uppercase tracking-[0.3em] text-[#FBBF24]">Ils parlent de nous</span>
+            <h2 className="font-serif text-4xl font-light text-white sm:text-6xl">Ce que nos <span className={goldText}>clients</span> disent</h2>
+          </motion.div>
+          <div className="grid gap-8 md:grid-cols-3">
+            {testimonials.map((t, i) => (
+              <TestimonialCard key={i} {...t} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========== CALL TO ACTION FINAL ========== */}
+      <section className="relative overflow-hidden py-32">
+        <div className="absolute inset-0 -z-10">
+          <img src="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=2000" className="h-full w-full object-cover opacity-20 blur-sm" alt="" />
+        </div>
+        <div className="mx-auto max-w-4xl px-6 text-center">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
+            <Sparkles className="mx-auto mb-6 h-12 w-12 text-[#FBBF24]" />
+            <h2 className="font-serif text-4xl font-light text-white sm:text-6xl">Prêt à rejoindre l'excellence ?</h2>
+            <p className="mx-auto mt-6 max-w-2xl text-gray-400">Offrez-vous une expérience unique dans notre salon privé. Réservation recommandée.</p>
+            <Link href="/reservation" className={`mt-10 inline-flex items-center gap-3 rounded-full px-10 py-5 text-[11px] font-black uppercase tracking-widest text-black transition-all hover:-translate-y-1 ${goldBg}`}>
+              Réserver ma place <ChevronRight size={16} />
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ========== FOOTER ========== */}
+      <footer id="contact" className="border-t border-[#F59E0B]/20 bg-black pb-12 pt-24 text-white">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="grid gap-16 md:grid-cols-2 lg:grid-cols-4">
+            <div className="lg:col-span-2">
+              <span className={`font-serif text-3xl font-bold tracking-tighter ${goldText}`}>PRESTIGE.</span>
+              <p className="mt-6 max-w-sm text-sm leading-relaxed text-gray-400">L'adresse de référence pour l'homme d'influence à Alger. Un espace confidentiel pour une image impeccable.</p>
+              <div className="mt-8 flex gap-4">
+                {[FaInstagram, FaFacebookF, FaWhatsapp].map((Icon, i) => (
+                  <a key={i} href="#" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-gray-400 transition-all hover:border-[#FBBF24] hover:text-[#FBBF24]" aria-label="Réseau social">
+                    <Icon size={18} />
+                  </a>
+                ))}
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ----- SERVICES ----- */}
-      <section className="relative px-5 pb-24">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <p className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.24em] text-[#FE5737]">
-                <Sparkle size={14} className="fill-[#FE5737]" />
-                Nos expertises
-              </p>
-              <h2 className="mt-3 text-5xl font-black tracking-tight text-slate-950 lg:text-6xl">
-                Des prestations pensées pour vous.
-              </h2>
+              <h4 className="mb-6 text-[11px] font-black uppercase tracking-widest text-[#FBBF24]">Contact</h4>
+              <ul className="space-y-4 text-sm text-gray-400">
+                <li className="flex items-center gap-3"><MapPin size={16} className="text-[#FBBF24]" />12 Rue des Jardins, Hydra, Alger</li>
+                <li className="flex items-center gap-3"><Phone size={16} className="text-[#FBBF24]" />+213 (0) 555 00 00 00</li>
+              </ul>
             </div>
-
-            <p className="max-w-md text-base leading-7 text-slate-500">
-              Chaque service est décrit simplement pour vous aider à choisir le
-              créneau idéal, sans surprise.
-            </p>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <ServiceCard
-              icon={<Scissors size={26} />}
-              title="Coupe homme"
-              description="Moderne, classique ou dégradé, selon votre morphologie."
-              price="800 DA"
-            />
-
-            <ServiceCard
-              icon={<UserCheck size={26} />}
-              title="Barbe"
-              description="Traçage précis, rasage traditionnel et soin de la peau."
-              price="500 DA"
-            />
-
-            <ServiceCard
-              icon={<Sparkles size={26} />}
-              title="Coupe + barbe"
-              description="Le duo gagnant pour un look impeccable et durable."
-              price="1200 DA"
-              highlight
-            />
-
-            <ServiceCard
-              icon={<BadgeCheck size={26} />}
-              title="Soin capillaire"
-              description="Hydratation, brillance et vigueur pour vos cheveux."
-              price="1000 DA"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ----- À PROPOS ----- */}
-      <section className="border-y border-slate-200/70 bg-gradient-to-b from-white to-[#F8FAFB] px-5 py-28">
-        <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[1fr_1.1fr]">
-          <div className="group relative overflow-hidden rounded-[44px] border border-white bg-slate-50/50 p-3 shadow-2xl shadow-slate-200/50 transition-all duration-700 hover:shadow-2xl hover:shadow-slate-200/80">
-            <div className="absolute inset-0 rounded-[44px] bg-gradient-to-tr from-[#1B4F59]/10 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-            <img
-              src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=1200"
-              alt="Intérieur salon"
-              className="relative h-[480px] w-full rounded-[34px] object-cover shadow-inner"
-            />
-            {/* Badge flottant */}
-            <div className="absolute bottom-6 left-6 rounded-2xl border border-white/70 bg-white/80 px-5 py-3 backdrop-blur-xl shadow-lg">
-              <p className="text-sm font-black text-slate-900">⭐ 4.9/5 sur +200 avis</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.24em] text-[#FE5737]">
-              <Crown size={14} className="text-[#D4AF37]" />
-              Notre philosophie
-            </p>
-
-            <h2 className="mt-4 text-5xl font-black tracking-tight text-slate-950 lg:text-6xl">
-              L’art du détail, <br /> la culture du soin.
-            </h2>
-
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600">
-              Dans notre salon, chaque geste compte. Nous avons pensé un espace
-              où le style rencontre le bien‑être : matériel stérilisé, fauteuils
-              ergonomiques, et un savoir‑faire transmis avec passion.
-            </p>
-
-            <div className="mt-10 grid gap-5 sm:grid-cols-2">
-              <AdvantageCard
-                title="Respect du temps"
-                text="Créneaux optimisés, sans attente inutile."
-              />
-              <AdvantageCard
-                title="Confort maximal"
-                text="Ambiance tamisée, boissons offertes."
-              />
-              <AdvantageCard
-                title="Résultat durable"
-                text="Produits professionnels et gestes techniques."
-              />
-              <AdvantageCard
-                title="Réservation 24/7"
-                text="Prenez rendez-vous depuis votre téléphone."
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ----- INFOS PRATIQUES ----- */}
-      <section className="px-5 py-24">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-6 md:grid-cols-3">
-            <InfoBox
-              icon={<MapPin size={22} />}
-              title="Adresse"
-              text="45, rue Didouche Mourad, Alger"
-            />
-
-            <InfoBox
-              icon={<Clock3 size={22} />}
-              title="Horaires"
-              text="Sam - Jeu : 09h00 - 18h00"
-            />
-
-            <InfoBox
-              icon={<Phone size={22} />}
-              title="Contact"
-              text="+213 555 12 34 56"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ----- CTA ----- */}
-      <section className="px-5 pb-28">
-        <div className="mx-auto max-w-6xl overflow-hidden rounded-[44px] border border-[#1B4F59]/10 bg-gradient-to-br from-[#0F2A30] via-[#1B4F59] to-[#0F2A30] p-10 shadow-[0_30px_100px_rgba(15,42,48,0.3)] md:p-16">
-          <div className="grid items-center gap-12 md:grid-cols-[1.3fr_0.7fr]">
             <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-2 text-xs font-black uppercase tracking-[0.2em] text-white backdrop-blur-md">
-                <CalendarDays size={15} />
-                Réservation prioritaire
-              </div>
-
-              <h2 className="text-4xl font-black tracking-tight text-white md:text-5xl lg:text-6xl">
-                Prêt à sublimer votre style ?
-              </h2>
-
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-white/80">
-                Choisissez votre service, créez un compte en 30 secondes et
-                verrouillez votre créneau. Aucun appel nécessaire.
-              </p>
-
-              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <Link
-                  href="/reservation"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-9 py-4.5 text-sm font-black text-[#1B4F59] shadow-2xl shadow-white/10 transition-all duration-500 hover:-translate-y-1 hover:bg-[#F8FAFB] hover:shadow-white/20"
-                >
-                  Prendre rendez-vous
-                  <ArrowRight size={18} />
-                </Link>
-
-                <Link
-                  href="/contact"
-                  className="inline-flex items-center justify-center rounded-2xl border-2 border-white/30 px-9 py-4.5 text-sm font-black text-white backdrop-blur-sm transition-all duration-500 hover:-translate-y-1 hover:border-white/60 hover:bg-white/10"
-                >
-                  Nous contacter
-                </Link>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <StatBox value="4.9" label="Avis clients" />
-              <StatBox value="20+" label="Services / jour" />
-              <StatBox value="09h" label="Ouverture" />
-              <StatBox value="100%" label="Sur RDV" />
+              <h4 className="mb-6 text-[11px] font-black uppercase tracking-widest text-[#FBBF24]">Horaires</h4>
+              <ul className="space-y-4 text-sm text-gray-400">
+                <li className="flex items-center gap-3 text-white"><Clock size={16} className="text-[#FBBF24]" />Sam - Jeu : 09:00 - 20:00</li>
+                <li className="pl-7 text-xs italic opacity-50">Vendredi : Service VIP sur demande</li>
+              </ul>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ----- FOOTER ----- */}
-      <footer className="border-t border-slate-200 bg-white px-5 py-12">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-8 md:flex-row">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1B4F59] to-[#2E7D8A] text-white shadow-lg shadow-[#1B4F59]/20">
-              <Scissors size={22} />
-            </div>
-
-            <div>
-              <p className="text-xl font-black text-slate-950">Coiffeur Prestige</p>
-              <p className="text-sm font-medium text-slate-400">
-                L’excellence à chaque coupe
-              </p>
-            </div>
-          </div>
-
-          <p className="text-center text-sm font-medium text-slate-400">
-            © {new Date().getFullYear()} Coiffeur Prestige. Tous droits réservés.
-          </p>
-
-          <div className="flex gap-8 text-sm font-bold text-slate-600">
-            <Link href="/services" className="transition-colors hover:text-[#1B4F59]">
-              Services
-            </Link>
-            <Link href="/reservation" className="transition-colors hover:text-[#1B4F59]">
-              Réservation
-            </Link>
-            <Link href="/contact" className="transition-colors hover:text-[#1B4F59]">
-              Contact
-            </Link>
-          </div>
+          <div className="mt-24 border-t border-white/5 pt-8 text-center text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">© 2026 PRESTIGE SALON PRIVÉ - ÉLÉGANCE ABSOLUE</div>
         </div>
       </footer>
     </main>
-  );
-}
-
-// ─── Composants réutilisables ────────────────────────────────────────────────
-
-function HeroBadge({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 px-5 py-2.5 text-sm font-bold text-slate-600 shadow-lg shadow-slate-200/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1B4F59]/30 hover:text-[#1B4F59] hover:shadow-xl">
-      <span className="text-[#1B4F59]">{icon}</span>
-      {text}
-    </div>
-  );
-}
-
-function ServiceCard({
-  icon,
-  title,
-  description,
-  price,
-  highlight = false,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  price: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`group relative rounded-[34px] border p-7 transition-all duration-500 hover:-translate-y-3 ${
-        highlight
-          ? "border-[#FE5737] bg-gradient-to-br from-[#FE5737] to-[#FF7F5C] text-white shadow-2xl shadow-[#FE5737]/25"
-          : "border-slate-200 bg-white text-slate-950 shadow-xl shadow-slate-200/50 hover:border-[#1B4F59]/30 hover:shadow-2xl hover:shadow-[#1B4F59]/5"
-      }`}
-    >
-      {/* Effet de brillance */}
-      {highlight && (
-        <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/10 blur-2xl transition-all duration-700 group-hover:bg-white/20" />
-      )}
-
-      <div
-        className={`mb-7 flex h-15 w-15 items-center justify-center rounded-2xl transition-all duration-500 ${
-          highlight
-            ? "bg-white/20 text-white"
-            : "bg-[#1B4F59]/8 text-[#1B4F59] group-hover:bg-[#1B4F59] group-hover:text-white"
-        }`}
-      >
-        {icon}
-      </div>
-
-      <h3 className="text-2xl font-black">{title}</h3>
-
-      <p
-        className={`mt-3 text-sm leading-7 ${
-          highlight ? "text-white/85" : "text-slate-500"
-        }`}
-      >
-        {description}
-      </p>
-
-      <div className="mt-7 flex items-center justify-between">
-        <p
-          className={`text-lg font-black ${
-            highlight ? "text-white" : "text-[#FE5737]"
-          }`}
-        >
-          {price}
-        </p>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-black ${
-            highlight
-              ? "bg-white/20 text-white"
-              : "bg-[#1B4F59]/10 text-[#1B4F59] group-hover:bg-[#1B4F59] group-hover:text-white"
-          }`}
-        >
-          ≈ 30 min
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function AdvantageCard({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-md transition-all duration-500 hover:-translate-y-1.5 hover:border-[#1B4F59]/30 hover:shadow-xl">
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#1B4F59]/10 to-[#1B4F59]/5 text-[#1B4F59] transition-colors group-hover:bg-[#1B4F59] group-hover:text-white">
-        <CheckCircle2 size={20} />
-      </div>
-
-      <h3 className="font-black text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{text}</p>
-    </div>
-  );
-}
-
-function InfoBox({
-  icon,
-  title,
-  text,
-}: {
-  icon: ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="group rounded-[32px] border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50 transition-all duration-500 hover:-translate-y-2 hover:border-[#1B4F59]/30 hover:shadow-2xl hover:shadow-[#1B4F59]/10">
-      <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1B4F59]/10 to-[#1B4F59]/5 text-[#1B4F59] transition-all group-hover:bg-[#1B4F59] group-hover:text-white group-hover:shadow-lg">
-        {icon}
-      </div>
-
-      <h3 className="text-2xl font-black text-slate-950">{title}</h3>
-      <p className="mt-3 text-base font-semibold leading-7 text-slate-500">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function StatBox({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-[28px] border border-white/20 bg-white/10 p-6 backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:bg-white/20 hover:shadow-2xl">
-      <p className="text-4xl font-black tracking-tight text-white drop-shadow-lg">
-        {value}
-      </p>
-      <p className="mt-2 text-sm font-bold text-white/70">{label}</p>
-    </div>
   );
 }
