@@ -55,26 +55,27 @@ const minutesOptions = ["00", "15", "30", "45"];
 const pageSizeOptions = [10, 20, 50];
 
 const inputClass =
-  "w-full rounded-2xl border px-4 py-3 outline-none transition-all " +
+  "w-full rounded-2xl border px-4 py-3 text-base outline-none transition-all sm:text-sm " +
   "bg-white text-slate-900 placeholder-slate-400 border-slate-200 " +
   "focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 " +
   "dark:bg-[#111111] dark:text-white dark:placeholder-gray-500 dark:border-white/10";
 
 const selectClass =
-  "w-full rounded-2xl border px-4 py-3 outline-none transition-all " +
+  "w-full rounded-2xl border px-4 py-3 text-base outline-none transition-all sm:text-sm " +
   "bg-white text-slate-900 border-slate-200 " +
   "focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 " +
   "dark:bg-[#111111] dark:text-white dark:border-white/10";
 
 const cardClass =
-  "rounded-3xl border p-6 shadow-2xl " +
-  "bg-white border-slate-200 shadow-slate-200/60 " +
-  "dark:bg-[#0D0D0D] dark:border-white/10 dark:shadow-black/40";
+  "rounded-[26px] border p-4 shadow-xl sm:rounded-3xl sm:p-6 " +
+  "bg-white border-slate-200 shadow-slate-200/50 " +
+  "dark:bg-[#0D0D0D] dark:border-white/10 dark:shadow-black/30";
 
 const tableWrapperClass =
-  "mt-5 overflow-x-auto rounded-2xl border " +
+  "mt-5 overflow-x-auto rounded-[22px] border " +
   "bg-white border-slate-200 " +
-  "dark:bg-[#0D0D0D] dark:border-white/15";
+  "dark:bg-[#0D0D0D] dark:border-white/15 " +
+  "[-webkit-overflow-scrolling:touch]";
 
 const tableClass = "w-full border-collapse text-left";
 
@@ -82,7 +83,7 @@ const theadClass =
   "bg-slate-100 text-slate-900 dark:bg-black dark:!text-white";
 
 const thClass =
-  "px-4 py-4 text-xs font-black uppercase tracking-[0.14em] " +
+  "whitespace-nowrap px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] sm:px-4 sm:py-4 sm:text-xs " +
   "bg-slate-100 text-slate-700 dark:bg-black dark:!text-white";
 
 const rowClass =
@@ -91,12 +92,12 @@ const rowClass =
   "dark:bg-[#0D0D0D] dark:hover:!bg-white";
 
 const tdWhite =
-  "px-4 py-4 text-sm font-semibold transition-colors duration-200 " +
+  "whitespace-nowrap px-3 py-3 text-xs font-semibold transition-colors duration-200 sm:px-4 sm:py-4 sm:text-sm " +
   "text-slate-900 group-hover:text-slate-950 " +
   "dark:!text-white dark:group-hover:!text-black";
 
 const tdLight =
-  "px-4 py-4 text-sm font-semibold transition-colors duration-200 " +
+  "whitespace-nowrap px-3 py-3 text-xs font-semibold transition-colors duration-200 sm:px-4 sm:py-4 sm:text-sm " +
   "text-slate-700 group-hover:text-slate-950 " +
   "dark:!text-white dark:group-hover:!text-black";
 
@@ -246,10 +247,10 @@ function PaginationControls({
   onPageSizeChange: (size: number) => void;
 }) {
   return (
-    <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
+    <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03] sm:p-4 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-gray-400">
-          Lignes par page
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-gray-400 sm:text-xs">
+          Lignes
         </span>
 
         <select
@@ -264,7 +265,7 @@ function PaginationControls({
           ))}
         </select>
 
-        <span className="text-sm font-semibold text-slate-600 dark:text-gray-300">
+        <span className="text-xs font-semibold text-slate-600 dark:text-gray-300 sm:text-sm">
           {totalItems === 0
             ? "0 résultat"
             : `${startIndex + 1}-${endIndex} sur ${totalItems}`}
@@ -292,7 +293,7 @@ function PaginationControls({
           <ChevronLeft size={17} />
         </button>
 
-        <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-700 dark:text-amber-300">
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-700 dark:text-amber-300 sm:px-4 sm:text-sm">
           Page {page} / {totalPages}
         </div>
 
@@ -336,9 +337,9 @@ function ThemeModeButton() {
     return (
       <button
         type="button"
-        className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+        className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 sm:w-auto sm:px-4"
       >
-        Thème
+        <Moon size={18} />
       </button>
     );
   }
@@ -349,11 +350,13 @@ function ThemeModeButton() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white"
+      className="flex h-11 w-11 items-center justify-center rounded-2xl border px-0 text-sm font-bold transition-all border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white sm:w-auto sm:gap-2 sm:px-4"
       title={isDark ? "Passer en mode normal" : "Passer en mode sombre"}
     >
       {isDark ? <Sun size={18} /> : <Moon size={18} />}
-      {isDark ? "Mode normal" : "Mode sombre"}
+      <span className="hidden sm:inline">
+        {isDark ? "Mode normal" : "Mode sombre"}
+      </span>
     </button>
   );
 }
@@ -418,18 +421,18 @@ function PrettyAlert({
   };
 
   return (
-    <div className="mx-auto mb-6 max-w-7xl space-y-3 px-6">
+    <div className="mx-auto mb-6 max-w-7xl space-y-3 px-4 sm:px-6">
       {alert && (
         <div
-          className={`relative overflow-hidden rounded-3xl border p-4 shadow-2xl backdrop-blur-xl animate-[slideDown_0.25s_ease-out] ${
+          className={`relative overflow-hidden rounded-[24px] border p-4 shadow-xl animate-[slideDown_0.25s_ease-out] sm:rounded-3xl ${
             alertConfig[alert.type].wrapper
           } ${alertConfig[alert.type].glow}`}
         >
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#FBBF24]/70 to-transparent" />
 
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border sm:h-12 sm:w-12 ${
                 alertConfig[alert.type].iconBox
               }`}
             >
@@ -437,9 +440,10 @@ function PrettyAlert({
             </div>
 
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-900 dark:text-white">
+              <h3 className="text-xs font-black uppercase tracking-[0.18em] text-slate-900 dark:text-white sm:text-sm">
                 {alertConfig[alert.type].title}
               </h3>
+
               <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-gray-200">
                 {alert.message}
               </p>
@@ -457,11 +461,12 @@ function PrettyAlert({
       )}
 
       {loading && (
-        <div className="rounded-3xl border border-amber-400/25 bg-white p-4 text-sm font-bold text-slate-900 shadow-2xl shadow-amber-500/10 dark:bg-[#0D0D0D] dark:text-white">
+        <div className="rounded-[24px] border border-amber-400/25 bg-white p-4 text-sm font-bold text-slate-900 shadow-xl shadow-amber-500/10 dark:bg-[#0D0D0D] dark:text-white sm:rounded-3xl">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-[#FBBF24]">
               <span className="animate-spin">⏳</span>
             </div>
+
             <div>
               <p className="font-black text-slate-900 dark:text-white">
                 Chargement
@@ -487,18 +492,20 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/70 transition-all duration-300 hover:-translate-y-1 hover:border-amber-400/40 hover:shadow-amber-500/10 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/30 dark:hover:border-amber-400/30">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-white">
+    <div className="group rounded-[22px] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60 transition-all duration-300 hover:border-amber-400/40 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/30 dark:hover:border-amber-400/30 sm:rounded-2xl sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-white sm:text-sm">
             {title}
           </p>
-          <p className={`mt-2 text-2xl font-serif font-bold ${goldText}`}>
+          <p
+            className={`mt-2 truncate text-xl font-serif font-bold sm:text-2xl ${goldText}`}
+          >
             {value}
           </p>
         </div>
 
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-[#FBBF24] transition-transform duration-300 group-hover:scale-110">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-[#FBBF24] sm:h-12 sm:w-12">
           {icon}
         </div>
       </div>
@@ -564,32 +571,37 @@ function RdvBadge({ statut }: { statut: RendezvousStatut }) {
 
 function DashboardHeader({ onLogout }: { onLogout: () => void }) {
   return (
-    <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 pb-6 pt-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-black shadow-lg shadow-amber-500/20">
-          <Scissors size={20} />
+    <div className="sticky top-0 z-40 border-b border-slate-200/80 bg-slate-50/90 backdrop-blur-md dark:border-white/10 dark:bg-[#050505]/90">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-black shadow-lg shadow-amber-500/20">
+            <Scissors size={20} />
+          </div>
+
+          <div className="min-w-0">
+            <h1
+              className={`truncate text-xl font-serif font-bold sm:text-2xl ${goldText}`}
+            >
+              Dashboard Admin
+            </h1>
+
+            <p className="truncate text-[11px] font-medium text-slate-500 dark:text-gray-400 sm:text-xs">
+              Services, RDV et créneaux
+            </p>
+          </div>
         </div>
 
-        <div>
-          <h1 className={`text-2xl font-serif font-bold ${goldText}`}>
-            Dashboard Admin
-          </h1>
-          <p className="text-xs font-medium text-slate-500 dark:text-gray-400">
-            Services, rendez-vous et créneaux
-          </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeModeButton />
+
+          <button
+            onClick={onLogout}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
+            title="Déconnexion"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <ThemeModeButton />
-
-        <button
-          onClick={onLogout}
-          className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white"
-        >
-          <LogOut size={18} />
-          Déconnexion
-        </button>
       </div>
     </div>
   );
@@ -597,8 +609,8 @@ function DashboardHeader({ onLogout }: { onLogout: () => void }) {
 
 function StatsSection({ stats }: { stats: DashboardStats | null }) {
   return (
-    <div className="mx-auto max-w-7xl px-6">
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-5">
         <StatCard
           title="Total RDV"
           value={stats?.total_rendezvous ?? 0}
@@ -618,16 +630,18 @@ function StatsSection({ stats }: { stats: DashboardStats | null }) {
         />
 
         <StatCard
-          title="Disponibles"
+          title="Dispos"
           value={stats?.creneaux_disponibles ?? 0}
           icon={<CheckCircle />}
         />
 
-        <StatCard
-          title="Recette"
-          value={`${stats?.recette_totale ?? 0} DZD`}
-          icon={<DollarSign />}
-        />
+        <div className="col-span-2 lg:col-span-1">
+          <StatCard
+            title="Recette"
+            value={`${stats?.recette_totale ?? 0} DZD`}
+            icon={<DollarSign />}
+          />
+        </div>
       </div>
     </div>
   );
@@ -655,7 +669,7 @@ function ServiceForm({
   return (
     <div className={cardClass}>
       <h2
-        className={`flex items-center gap-2 text-xl font-serif font-bold ${goldText}`}
+        className={`flex items-center gap-2 text-lg font-serif font-bold sm:text-xl ${goldText}`}
       >
         <Plus size={20} />
         {form.id ? "Modifier le service" : "Ajouter un service"}
@@ -671,11 +685,12 @@ function ServiceForm({
           className={inputClass}
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
               Durée
             </label>
+
             <input
               name="duree"
               type="number"
@@ -691,6 +706,7 @@ function ServiceForm({
             <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
               Prix
             </label>
+
             <input
               name="prix"
               type="number"
@@ -708,17 +724,17 @@ function ServiceForm({
             Photo du service
           </label>
 
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/15 dark:bg-white/[0.03]">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-3 dark:border-white/15 dark:bg-white/[0.03] sm:p-4">
             {previewImage ? (
               <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
                 <img
                   src={previewImage}
                   alt="Aperçu service"
-                  className="h-44 w-full object-cover"
+                  className="h-40 w-full object-cover sm:h-44"
                 />
               </div>
             ) : (
-              <div className="mb-4 flex h-44 items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-400 dark:border-white/10 dark:bg-[#111111] dark:text-gray-500">
+              <div className="mb-4 flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-400 dark:border-white/10 dark:bg-[#111111] dark:text-gray-500 sm:h-44">
                 <div className="flex flex-col items-center gap-2">
                   <UploadCloud size={34} />
                   <span>Aucune photo sélectionnée</span>
@@ -730,7 +746,7 @@ function ServiceForm({
               type="file"
               accept="image/jpeg,image/jpg,image/png,image/webp"
               onChange={onImageChange}
-              className="w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-amber-400 file:px-4 file:py-2 file:font-black file:text-black hover:file:bg-amber-300 dark:border-white/10 dark:bg-[#111111] dark:text-white"
+              className="w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-amber-400 file:px-3 file:py-2 file:font-black file:text-black hover:file:bg-amber-300 dark:border-white/10 dark:bg-[#111111] dark:text-white sm:px-4"
             />
 
             <p className="mt-2 text-xs font-medium text-slate-500 dark:text-gray-400">
@@ -752,6 +768,7 @@ function ServiceForm({
           <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
             Statut
           </label>
+
           <select
             name="statut"
             value={form.statut}
@@ -797,12 +814,12 @@ function ServicesTable({
 
   return (
     <div className={cardClass}>
-      <h2 className={`text-xl font-serif font-bold ${goldText}`}>
+      <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
         📋 Liste des services
       </h2>
 
       <div className={tableWrapperClass}>
-        <table className={`${tableClass} min-w-[850px]`}>
+        <table className={`${tableClass} min-w-[720px]`}>
           <thead className={theadClass}>
             <tr>
               <th className={thClass}>Photo</th>
@@ -817,7 +834,7 @@ function ServicesTable({
           <tbody className="divide-y divide-slate-200 dark:divide-white/20">
             {pagination.paginatedItems.map((service) => (
               <tr key={service.id} className={rowClass}>
-                <td className="px-4 py-4">
+                <td className="px-3 py-3 sm:px-4 sm:py-4">
                   {service.image_url || service.image ? (
                     <img
                       src={service.image_url || service.image || ""}
@@ -835,7 +852,7 @@ function ServicesTable({
                 <td className={tdLight}>{service.duree} min</td>
                 <td className={tdLight}>{service.prix} DZD</td>
 
-                <td className="px-4 py-4 text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black">
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black sm:px-4 sm:py-4 sm:text-sm">
                   <span
                     className={
                       service.statut === "inactif"
@@ -847,7 +864,7 @@ function ServicesTable({
                   </span>
                 </td>
 
-                <td className="space-x-2 px-4 py-4 text-right">
+                <td className="space-x-2 whitespace-nowrap px-3 py-3 text-right sm:px-4 sm:py-4">
                   <button
                     onClick={() => onEdit(service)}
                     title="Modifier ce service"
@@ -875,6 +892,7 @@ function ServicesTable({
               size={40}
               className="mx-auto mb-3 text-slate-400 dark:text-gray-600"
             />
+
             <p className="font-semibold text-slate-500 dark:text-gray-400">
               Aucun service enregistré.
             </p>
@@ -918,7 +936,7 @@ function CreneauForm({
 
   return (
     <div className={cardClass}>
-      <h2 className={`text-xl font-serif font-bold ${goldText}`}>
+      <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
         📅 Publier un créneau
       </h2>
 
@@ -932,7 +950,7 @@ function CreneauForm({
             Services concernés
           </label>
 
-          <div className="max-h-72 space-y-2 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="max-h-72 space-y-2 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03] [-webkit-overflow-scrolling:touch]">
             {activeServices.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-400 dark:border-white/10 dark:bg-[#111111]">
                 Aucun service actif
@@ -981,6 +999,7 @@ function CreneauForm({
           <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
             Date
           </label>
+
           <input
             type="date"
             name="date_creneau"
@@ -997,6 +1016,7 @@ function CreneauForm({
             <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
               Heure
             </label>
+
             <select
               name="heure"
               value={form.heure}
@@ -1015,6 +1035,7 @@ function CreneauForm({
             <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
               Minutes
             </label>
+
             <select
               name="minute"
               value={form.minute}
@@ -1066,6 +1087,7 @@ function CreneauxFilters({
           <p className="text-sm font-black uppercase tracking-[0.14em] text-slate-900 dark:text-white">
             Filtre des créneaux disponibles
           </p>
+
           <p className="mt-1 text-xs font-medium text-slate-500 dark:text-gray-400">
             Par défaut, les créneaux disponibles du jour sont affichés.
           </p>
@@ -1076,13 +1098,14 @@ function CreneauxFilters({
             <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
               Date disponible
             </label>
+
             <input
               type="date"
               name="date"
               value={filter.date}
               min={getTodayDateValue()}
               onChange={onChange}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white sm:text-sm"
             />
           </div>
 
@@ -1122,7 +1145,7 @@ function CreneauxTable({
   return (
     <div className={cardClass}>
       <div>
-        <h2 className={`text-xl font-serif font-bold ${goldText}`}>
+        <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
           📌 Créneaux disponibles du jour
         </h2>
 
@@ -1140,7 +1163,7 @@ function CreneauxTable({
       />
 
       <div className={tableWrapperClass}>
-        <table className={`${tableClass} min-w-[800px]`}>
+        <table className={`${tableClass} min-w-[680px]`}>
           <thead className={theadClass}>
             <tr>
               <th className={thClass}>Service</th>
@@ -1164,11 +1187,11 @@ function CreneauxTable({
                   {formatTimeOnly(creneau.heure_creneau)}
                 </td>
 
-                <td className="px-4 py-4 text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black">
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black sm:px-4 sm:py-4 sm:text-sm">
                   <CreneauBadge statut={creneau.statut} />
                 </td>
 
-                <td className="px-4 py-4 text-right">
+                <td className="whitespace-nowrap px-3 py-3 text-right sm:px-4 sm:py-4">
                   <button
                     onClick={() => onDelete(creneau.id)}
                     disabled={creneau.statut === "reserve"}
@@ -1193,6 +1216,7 @@ function CreneauxTable({
               size={40}
               className="mx-auto mb-3 text-slate-400 dark:text-gray-600"
             />
+
             <p className="font-semibold text-slate-500 dark:text-gray-400">
               Aucun créneau disponible pour cette date.
             </p>
@@ -1240,7 +1264,7 @@ function RdvFilters({
           name="statut"
           value={filter.statut}
           onChange={onChange}
-          className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white"
+          className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-base font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white sm:py-2 sm:text-sm"
         >
           <option value="">📋 Tous les statuts</option>
           <option value="en_attente">🟡 En attente</option>
@@ -1254,13 +1278,13 @@ function RdvFilters({
           name="date"
           value={filter.date}
           onChange={onChange}
-          className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white"
+          className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-base font-semibold text-slate-900 outline-none focus:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white sm:py-2 sm:text-sm"
         />
 
         <button
           type="button"
           onClick={onApply}
-          className={`rounded-2xl px-4 py-2 text-sm font-black text-black transition hover:opacity-90 active:scale-[0.98] ${goldBg}`}
+          className={`rounded-2xl px-4 py-3 text-sm font-black text-black transition hover:opacity-90 active:scale-[0.98] sm:py-2 ${goldBg}`}
         >
           🔍 Filtrer
         </button>
@@ -1268,7 +1292,7 @@ function RdvFilters({
         <button
           type="button"
           onClick={onReset}
-          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 sm:py-2"
         >
           <RefreshCcw size={15} />
           Aujourd’hui
@@ -1277,20 +1301,21 @@ function RdvFilters({
         <button
           type="button"
           onClick={onRefreshNow}
-          className="flex items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-black dark:text-amber-300"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-black dark:text-amber-300 sm:py-2"
         >
           <RefreshCcw size={15} />
           Refresh
         </button>
       </div>
 
-      <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-xs font-bold text-sky-700 dark:text-sky-300">
-        RDV affichés : <span className="font-black">{total}</span>
-        {" "}• Date : <span className="font-black">{filter.date}</span>
-        {" "}• Refresh automatique chaque 1 minute
+      <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-xs font-bold leading-6 text-sky-700 dark:text-sky-300">
+        RDV affichés : <span className="font-black">{total}</span> • Date :{" "}
+        <span className="font-black">{filter.date}</span> • Refresh automatique
+        chaque 1 minute
         {lastRefresh && (
           <>
-            {" "}• Dernier refresh :{" "}
+            {" "}
+            • Dernier refresh :{" "}
             <span className="font-black">{lastRefresh}</span>
           </>
         )}
@@ -1313,7 +1338,7 @@ function RdvTable({
   return (
     <>
       <div className={tableWrapperClass}>
-        <table className={`${tableClass} min-w-[950px]`}>
+        <table className={`${tableClass} min-w-[820px]`}>
           <thead className={theadClass}>
             <tr>
               <th className={thClass}>Client</th>
@@ -1342,13 +1367,13 @@ function RdvTable({
 
                 <td className={tdLight}>{formatTimeOnly(rdv.heure_rdv)}</td>
 
-                <td className="px-4 py-4 text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black">
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black sm:px-4 sm:py-4 sm:text-sm">
                   <RdvBadge statut={rdv.statut} />
                 </td>
 
                 <td className={tdLight}>{rdv.prix} DZD</td>
 
-                <td className="space-x-2 px-4 py-4 text-right">
+                <td className="space-x-2 whitespace-nowrap px-3 py-3 text-right sm:px-4 sm:py-4">
                   <select
                     value={rdv.statut}
                     onChange={(e) =>
@@ -1384,6 +1409,7 @@ function RdvTable({
               size={40}
               className="mx-auto mb-3 text-slate-400 dark:text-gray-600"
             />
+
             <p className="font-semibold text-slate-500 dark:text-gray-400">
               Aucun rendez-vous pour cette date.
             </p>
@@ -1828,85 +1854,124 @@ export default function AdminDashboardPage() {
             transform: translateY(0) scale(1);
           }
         }
+
+        html {
+          scroll-behavior: smooth;
+        }
+
+        body {
+          overflow-x: hidden;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #fbbf24, #d97706);
+          border-radius: 999px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #fde68a, #f59e0b);
+        }
+
+        @media (max-width: 640px) {
+          input,
+          select,
+          textarea,
+          button {
+            font-size: 16px;
+          }
+        }
       `}</style>
 
       <DashboardHeader onLogout={logout} />
 
-      <PrettyAlert
-        alert={alert}
-        loading={loading}
-        onClose={() => setAlert(null)}
-      />
+      <div className="pb-20">
+        <PrettyAlert
+          alert={alert}
+          loading={loading}
+          onClose={() => setAlert(null)}
+        />
 
-      <StatsSection stats={stats} />
+        <StatsSection stats={stats} />
 
-      <section className="mx-auto max-w-7xl px-6 pb-16">
-        <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
-          <ServiceForm
-            form={serviceForm}
-            onChange={handleServiceChange}
-            onImageChange={handleServiceImageChange}
-            onSubmit={saveService}
-            onReset={resetServiceForm}
-          />
+        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+          <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
+            <ServiceForm
+              form={serviceForm}
+              onChange={handleServiceChange}
+              onImageChange={handleServiceImageChange}
+              onSubmit={saveService}
+              onReset={resetServiceForm}
+            />
 
-          <ServicesTable
-            services={services}
-            onEdit={editService}
-            onDelete={deleteService}
-          />
-        </div>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
-          <CreneauForm
-            form={creneauForm}
-            services={services}
-            onChange={handleCreneauChange}
-            onToggleService={toggleCreneauService}
-            onSubmit={saveCreneau}
-          />
-
-          <CreneauxTable
-            creneaux={creneauxDisponiblesFiltres}
-            filter={creneauFilter}
-            onFilterChange={handleCreneauFilterChange}
-            onResetFilter={resetCreneauFilter}
-            onDelete={deleteCreneau}
-          />
-        </div>
-
-        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-200/60 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/40">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className={`text-xl font-serif font-bold ${goldText}`}>
-                👥 Rendez-vous clients du jour
-              </h2>
-              <p className="mt-1 text-sm font-medium text-slate-500 dark:text-gray-400">
-                Les rendez-vous du jour sont affichés par défaut et se
-                rafraîchissent automatiquement chaque minute.
-              </p>
-            </div>
-
-            <div className="w-full lg:max-w-4xl">
-              <RdvFilters
-                filter={rdvFilter}
-                lastRefresh={lastRdvRefresh}
-                total={rendezvous.length}
-                onChange={handleFilterChange}
-                onApply={applyFilters}
-                onReset={resetFilters}
-                onRefreshNow={refreshRdvNow}
-              />
-            </div>
+            <ServicesTable
+              services={services}
+              onEdit={editService}
+              onDelete={deleteService}
+            />
           </div>
 
-          <RdvTable
-            rendezvous={rendezvous}
-            onUpdateStatut={updateRdvStatut}
-            onDelete={deleteRdv}
-          />
-        </div>
-      </section>
+          <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
+            <CreneauForm
+              form={creneauForm}
+              services={services}
+              onChange={handleCreneauChange}
+              onToggleService={toggleCreneauService}
+              onSubmit={saveCreneau}
+            />
+
+            <CreneauxTable
+              creneaux={creneauxDisponiblesFiltres}
+              filter={creneauFilter}
+              onFilterChange={handleCreneauFilterChange}
+              onResetFilter={resetCreneauFilter}
+              onDelete={deleteCreneau}
+            />
+          </div>
+
+          <div className="mt-6 rounded-[26px] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/30 sm:rounded-3xl sm:p-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
+                  👥 Rendez-vous clients du jour
+                </h2>
+
+                <p className="mt-1 text-sm font-medium leading-6 text-slate-500 dark:text-gray-400">
+                  Les rendez-vous du jour sont affichés par défaut et se
+                  rafraîchissent automatiquement chaque minute.
+                </p>
+              </div>
+
+              <div className="w-full xl:max-w-4xl">
+                <RdvFilters
+                  filter={rdvFilter}
+                  lastRefresh={lastRdvRefresh}
+                  total={rendezvous.length}
+                  onChange={handleFilterChange}
+                  onApply={applyFilters}
+                  onReset={resetFilters}
+                  onRefreshNow={refreshRdvNow}
+                />
+              </div>
+            </div>
+
+            <RdvTable
+              rendezvous={rendezvous}
+              onUpdateStatut={updateRdvStatut}
+              onDelete={deleteRdv}
+            />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
