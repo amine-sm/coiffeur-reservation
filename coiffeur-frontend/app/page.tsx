@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   Award,
@@ -12,8 +12,6 @@ import {
   Diamond,
   Eye,
   Loader2,
-  MapPin,
-  Phone,
   Quote,
   Scissors,
   ShieldCheck,
@@ -21,8 +19,8 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaWhatsapp } from "react-icons/fa";
 import Navbar from "@/components/Navbar";
+import ContactFooter from "@/components/ContactFooter";
 import { serviceService } from "@/lib/serviceService";
 import type { Service } from "@/lib/types";
 
@@ -385,10 +383,12 @@ function HeroSlider() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500">
               <Crown size={26} />
             </div>
+
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-600 dark:text-amber-400">
                 Prestige
               </p>
+
               <p className="text-sm font-semibold text-slate-900 dark:text-white">
                 Service privé & premium
               </p>
@@ -420,16 +420,6 @@ export default function LuxuryGoldBarber() {
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const [servicesError, setServicesError] = useState<string | null>(null);
-
-  const heroRef = useRef<HTMLElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
 
   useEffect(() => {
     let isMounted = true;
@@ -547,9 +537,7 @@ export default function LuxuryGoldBarber() {
     >
       <Navbar />
 
-      <div ref={heroRef as React.RefObject<HTMLDivElement>}>
-        <HeroSlider />
-      </div>
+      <HeroSlider />
 
       <section className="relative z-10 -mt-10 px-6 md:-mt-14">
         <div className="mx-auto max-w-7xl">
@@ -587,8 +575,8 @@ export default function LuxuryGoldBarber() {
             </div>
 
             <p className="max-w-md pb-2 text-slate-600 dark:text-gray-500">
-              Chaque détail est pensé pour l'homme moderne. Nos services sont
-              chargés directement depuis votre système de réservation.
+              Chaque détail est pensé pour l&apos;homme moderne. Nos services
+              sont chargés directement depuis votre système de réservation.
             </p>
           </div>
 
@@ -604,9 +592,11 @@ export default function LuxuryGoldBarber() {
           {!loadingServices && servicesError && (
             <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-red-500/20 bg-red-500/5 p-10 text-center">
               <AlertCircle className="mb-5 h-10 w-10 text-red-400" />
+
               <h3 className="mb-2 text-xl font-bold text-slate-950 dark:text-white">
                 Services indisponibles
               </h3>
+
               <p className="max-w-md text-sm text-slate-600 dark:text-gray-400">
                 {servicesError}
               </p>
@@ -618,12 +608,14 @@ export default function LuxuryGoldBarber() {
             featuredServices.length === 0 && (
               <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[40px] border border-slate-200 bg-white p-10 text-center dark:border-white/5 dark:bg-white/[0.03]">
                 <Scissors className="mb-5 h-10 w-10 text-[#FBBF24]" />
+
                 <h3 className="mb-2 text-xl font-bold text-slate-950 dark:text-white">
                   Aucun service disponible
                 </h3>
+
                 <p className="max-w-md text-sm text-slate-600 dark:text-gray-400">
-                  Ajoutez vos services depuis l'administration pour les afficher
-                  ici.
+                  Ajoutez vos services depuis l&apos;administration pour les
+                  afficher ici.
                 </p>
               </div>
             )}
@@ -706,12 +698,14 @@ export default function LuxuryGoldBarber() {
                           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-300">
                             À partir de
                           </p>
+
                           <div className="mt-1 flex items-end gap-1">
                             <span className="text-3xl font-black text-white">
                               {Number(service.prix || 0).toLocaleString(
                                 "fr-DZ"
                               )}
                             </span>
+
                             <span className="mb-1 text-sm font-bold text-amber-300">
                               DA
                             </span>
@@ -724,6 +718,7 @@ export default function LuxuryGoldBarber() {
 
                         <div className="mb-3 flex items-center gap-2">
                           <Sparkles size={15} className="text-amber-500" />
+
                           <span className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-600 dark:text-amber-400">
                             Service Signature
                           </span>
@@ -753,6 +748,7 @@ export default function LuxuryGoldBarber() {
                               <p className="text-xs font-bold text-slate-500 dark:text-gray-500">
                                 Disponibilité
                               </p>
+
                               <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
                                 Disponible
                               </p>
@@ -814,7 +810,7 @@ export default function LuxuryGoldBarber() {
             </span>
 
             <h2 className="font-serif text-4xl font-light text-slate-950 dark:text-white sm:text-6xl">
-              L'Élégance <span className={goldText}>capturée</span>
+              L&apos;Élégance <span className={goldText}>capturée</span>
             </h2>
           </motion.div>
 
@@ -875,7 +871,7 @@ export default function LuxuryGoldBarber() {
             <Sparkles className="mx-auto mb-6 h-12 w-12 text-[#FBBF24]" />
 
             <h2 className="font-serif text-4xl font-light text-slate-950 dark:text-white sm:text-6xl">
-              Prêt à rejoindre l'excellence ?
+              Prêt à rejoindre l&apos;excellence ?
             </h2>
 
             <p className="mx-auto mt-6 max-w-2xl text-slate-600 dark:text-gray-400">
@@ -893,83 +889,7 @@ export default function LuxuryGoldBarber() {
         </div>
       </section>
 
-      <footer
-        id="contact"
-        className="
-          border-t pb-12 pt-24
-          border-slate-200 bg-slate-950 text-white
-          dark:border-[#F59E0B]/20 dark:bg-black
-        "
-      >
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-16 md:grid-cols-2 lg:grid-cols-4">
-            <div className="lg:col-span-2">
-              <span
-                className={`font-serif text-3xl font-bold tracking-tighter ${goldText}`}
-              >
-                PRESTIGE.
-              </span>
-
-              <p className="mt-6 max-w-sm text-sm leading-relaxed text-gray-400">
-                L'adresse de référence pour l'homme d'influence à Alger. Un
-                espace confidentiel pour une image impeccable.
-              </p>
-
-              <div className="mt-8 flex gap-4">
-                {[FaInstagram, FaFacebookF, FaWhatsapp].map((Icon, i) => (
-                  <a
-                    key={i}
-                    href="#"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-gray-400 transition-all hover:border-[#FBBF24] hover:text-[#FBBF24]"
-                    aria-label="Réseau social"
-                  >
-                    <Icon size={18} />
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="mb-6 text-[11px] font-black uppercase tracking-widest text-[#FBBF24]">
-                Contact
-              </h4>
-
-              <ul className="space-y-4 text-sm text-gray-400">
-                <li className="flex items-center gap-3">
-                  <MapPin size={16} className="text-[#FBBF24]" />
-                  12 Rue des Jardins, Hydra, Alger
-                </li>
-
-                <li className="flex items-center gap-3">
-                  <Phone size={16} className="text-[#FBBF24]" />
-                  +213 (0) 555 00 00 00
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="mb-6 text-[11px] font-black uppercase tracking-widest text-[#FBBF24]">
-                Horaires
-              </h4>
-
-              <ul className="space-y-4 text-sm text-gray-400">
-                <li className="flex items-center gap-3 text-white">
-                  <Clock size={16} className="text-[#FBBF24]" />
-                  Sam - Jeu : 09:00 - 20:00
-                </li>
-
-                <li className="pl-7 text-xs italic opacity-50">
-                  Vendredi : Service VIP sur demande
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-24 border-t border-white/5 pt-8 text-center text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600">
-            © 2026 PRESTIGE SALON PRIVÉ - ÉLÉGANCE ABSOLUE
-          </div>
-        </div>
-      </footer>
+      <ContactFooter />
     </main>
   );
 }
