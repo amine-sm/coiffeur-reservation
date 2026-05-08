@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import { serviceService } from "@/lib/serviceService";
 import { rendezvousService } from "@/lib/rendezvousService";
@@ -84,26 +84,23 @@ function SuccessModal({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.8, opacity: 0, y: 40 }}
+            initial={{ scale: 0.96, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            exit={{ scale: 0.96, opacity: 0, y: 20 }}
+            transition={{ duration: 0.18 }}
             className="
-              relative mx-4 max-w-lg rounded-[48px] border p-10 text-center backdrop-blur-2xl
-              border-amber-500/30 bg-white text-slate-950 shadow-[0_0_80px_rgba(245,158,11,0.18)]
-              dark:bg-black/90 dark:text-white dark:shadow-[0_0_80px_rgba(251,191,36,0.2)]
+              relative w-full max-w-lg rounded-[34px] border p-8 text-center
+              border-amber-500/30 bg-white text-slate-950 shadow-2xl
+              dark:bg-zinc-950 dark:text-white
             "
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/20 ring-4 ring-amber-500/40">
+            <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/20 ring-4 ring-amber-500/30">
               <CheckCircle2
                 size={44}
                 className="text-amber-500 dark:text-amber-400"
@@ -118,7 +115,7 @@ function SuccessModal({
               Votre créneau a bien été réservé et est temporairement bloqué.
               <br />
               <span className="font-semibold text-amber-600 dark:text-amber-400">
-                Vous recevrez une confirmation définitive par téléphone / email
+                Vous recevrez une confirmation définitive par téléphone ou email
                 une fois validée par le coiffeur.
               </span>
             </p>
@@ -138,7 +135,14 @@ function SuccessModal({
             <button
               type="button"
               onClick={onClose}
-              className={`mt-8 flex w-full items-center justify-center gap-2 rounded-full px-6 py-4 text-[11px] font-black uppercase tracking-widest text-black transition-transform hover:scale-[1.02] ${goldBg}`}
+              className={`
+                mt-8 flex w-full items-center justify-center gap-2 rounded-full px-6 py-4
+                text-[11px] font-black uppercase tracking-widest text-black
+                shadow-[0_15px_40px_rgba(217,119,6,0.25)]
+                transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(217,119,6,0.35)]
+                active:translate-y-0
+                ${goldBg}
+              `}
             >
               <CheckCircle2 size={16} />
               Compris, merci !
@@ -152,11 +156,12 @@ function SuccessModal({
                 text-slate-500 hover:bg-slate-100 hover:text-slate-900
                 dark:text-gray-500 dark:hover:bg-white/10 dark:hover:text-white
               "
+              aria-label="Fermer"
             >
               <X size={20} />
             </button>
           </motion.div>
-        </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );
@@ -294,12 +299,6 @@ function ReservationContent() {
     setForm((prev) => ({
       ...prev,
       [name]: value,
-
-      /*
-        IMPORTANT :
-        Quand on change le service, on garde la date sélectionnée.
-        On supprime seulement l'heure choisie, car les horaires changent selon le service.
-      */
       ...(name === "service_id" ? { creneau_id: "" } : {}),
     }));
   }
@@ -417,28 +416,11 @@ function ReservationContent() {
     );
   }, [availableDates, form.date_rdv]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
-
   return (
     <main
       className="
-        min-h-screen selection:bg-amber-500/30
-        bg-white text-slate-950
+        min-h-screen overflow-x-hidden selection:bg-amber-500/30
+        bg-[#fafafa] text-slate-950
         dark:bg-black dark:text-white
       "
     >
@@ -448,77 +430,94 @@ function ReservationContent() {
         <div
           className="
             absolute inset-0
-            bg-gradient-to-br from-white via-slate-50 to-amber-50
-            dark:from-black dark:via-[#0a0a0a] dark:to-[#1a0a00]
+            bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_35%),linear-gradient(to_bottom,#ffffff,#f8fafc,#fff7ed)]
+            dark:bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_34%),linear-gradient(to_bottom,#020202,#090909,#000000)]
           "
         />
 
-        <motion.div
-          animate={{ x: ["0%", "100%", "0%"], y: ["0%", "50%", "0%"] }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        <div
           className="
-            absolute left-0 top-0 h-[80%] w-[80%] rounded-full blur-[150px]
-            bg-amber-400/20
+            absolute -left-40 top-20 h-[360px] w-[360px] rounded-full blur-[65px]
+            bg-amber-400/10
             dark:bg-amber-500/10
           "
         />
 
-        <motion.div
-          animate={{ x: ["100%", "0%", "100%"], y: ["100%", "0%", "100%"] }}
-          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+        <div
           className="
-            absolute bottom-0 right-0 h-[60%] w-[60%] rounded-full blur-[130px]
-            bg-orange-300/20
-            dark:bg-purple-600/10
+            absolute -right-40 bottom-20 h-[320px] w-[320px] rounded-full blur-[60px]
+            bg-orange-300/10
+            dark:bg-orange-500/10
           "
         />
       </div>
 
-      <section className="relative mx-auto max-w-7xl px-6 pt-36 pb-12 md:pt-40 lg:pt-44 lg:pb-20">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={containerVariants}
-          className="grid gap-10 lg:grid-cols-[1fr_400px]"
-        >
-          <motion.div
-            variants={itemVariants}
+      <section className="relative mx-auto max-w-7xl px-4 pb-12 pt-32 sm:px-6 md:pt-36 lg:pb-20 lg:pt-40">
+        <div className="mb-8">
+          <div
             className="
-              rounded-[48px] border p-6 shadow-2xl backdrop-blur-xl md:p-10
-              border-slate-200 bg-white/80
-              dark:border-white/10 dark:bg-white/5
+              inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px]
+              font-black uppercase tracking-[0.22em]
+              border-amber-500/30 bg-white/80 text-amber-700 shadow-sm
+              dark:border-amber-500/20 dark:bg-zinc-950/80 dark:text-amber-400
+            "
+          >
+            <Sparkles size={14} />
+            Expérience premium
+          </div>
+
+          <h1 className="mt-5 max-w-3xl font-serif text-4xl font-light leading-tight tracking-tight text-slate-950 dark:text-white md:text-6xl">
+            Réservez votre{" "}
+            <span className={`italic font-extralight ${goldText}`}>
+              moment privé
+            </span>
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-gray-400 md:text-base">
+            Choisissez une prestation, une date disponible et un horaire. Votre
+            demande sera ensuite confirmée par le salon.
+          </p>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[1fr_390px]">
+          <div
+            className="
+              rounded-[34px] border p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] md:p-8 lg:p-10
+              border-slate-200/80 bg-white/95
+              dark:border-white/10 dark:bg-zinc-950/85
             "
           >
             <div className="flex flex-col gap-6 border-b border-slate-200 pb-8 md:flex-row md:items-center md:justify-between dark:border-white/10">
               <div>
                 <div
                   className="
-                    mb-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-md
-                    border-amber-500/30 bg-white/70 text-amber-700
-                    dark:bg-black/40 dark:text-amber-400
+                    mb-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px]
+                    font-black uppercase tracking-[0.2em]
+                    border-amber-500/30 bg-amber-50 text-amber-700
+                    dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400
                   "
                 >
                   <CalendarCheck size={14} />
                   Réservation exclusive
                 </div>
 
-                <h1 className="font-serif text-4xl font-light tracking-tight text-slate-950 dark:text-white md:text-5xl">
+                <h2 className="font-serif text-3xl font-light tracking-tight text-slate-950 dark:text-white md:text-4xl">
                   Votre{" "}
                   <span className={`italic font-extralight ${goldText}`}>
                     Fauteuil
                   </span>
-                </h1>
+                </h2>
 
-                <p className="mt-3 max-w-xl text-sm text-slate-600 dark:text-gray-400">
-                  Choisissez votre service, une date et l&apos;heure qui vous
-                  convient.
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-gray-400">
+                  Remplissez vos informations, sélectionnez une prestation et
+                  bloquez votre horaire.
                 </p>
               </div>
 
               <div
                 className="
-                  rounded-2xl border p-4 backdrop-blur-sm
-                  border-slate-200 bg-white/70
+                  rounded-2xl border p-4 shadow-sm
+                  border-slate-200 bg-white/90
                   dark:border-white/10 dark:bg-black/30
                 "
               >
@@ -543,11 +542,12 @@ function ReservationContent() {
             <AnimatePresence>
               {message && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
                   className="
-                    mt-6 rounded-2xl border px-5 py-4 text-sm font-semibold backdrop-blur
+                    mt-6 rounded-2xl border px-5 py-4 text-sm font-semibold
                     border-red-500/20 bg-red-500/10 text-red-600
                     dark:text-red-400
                   "
@@ -559,9 +559,7 @@ function ReservationContent() {
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-10">
               <div>
-                <h2 className="mb-5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                  <UserRound size={16} /> Coordonnées
-                </h2>
+                <SectionTitle icon={<UserRound size={16} />} title="Coordonnées" />
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <InputField
@@ -602,9 +600,7 @@ function ReservationContent() {
               </div>
 
               <div>
-                <h2 className="mb-5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                  <Scissors size={16} /> Prestation
-                </h2>
+                <SectionTitle icon={<Scissors size={16} />} title="Prestation" />
 
                 <select
                   name="service_id"
@@ -612,10 +608,12 @@ function ReservationContent() {
                   onChange={handleChange}
                   required
                   className="
-                    w-full rounded-2xl border px-5 py-4 text-sm outline-none backdrop-blur transition
-                    border-slate-200 bg-white text-slate-950
-                    focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20
-                    dark:border-white/10 dark:bg-black/40 dark:text-white
+                    w-full rounded-2xl border px-5 py-4 text-sm outline-none transition-all duration-200
+                    border-slate-200 bg-white text-slate-950 shadow-sm
+                    hover:border-amber-400/60
+                    focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10
+                    dark:border-white/10 dark:bg-zinc-950 dark:text-white
+                    dark:hover:border-amber-400/40
                   "
                 >
                   <option value="">Choisir un service</option>
@@ -632,13 +630,11 @@ function ReservationContent() {
                 </select>
 
                 {selectedServiceInfo && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                  <div
                     className="
-                      mt-4 rounded-2xl border p-5 backdrop-blur
+                      mt-4 rounded-2xl border p-5 shadow-sm
                       border-amber-500/20 bg-amber-50/70
-                      dark:bg-black/40
+                      dark:bg-amber-500/5
                     "
                   >
                     <p className="font-serif text-lg text-slate-950 dark:text-white">
@@ -658,14 +654,12 @@ function ReservationContent() {
                         {formatLongDate(form.date_rdv)}
                       </p>
                     )}
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
               <div>
-                <h2 className="mb-5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                  <CalendarCheck size={16} /> Jour
-                </h2>
+                <SectionTitle icon={<CalendarCheck size={16} />} title="Jour" />
 
                 {!form.service_id ? (
                   <EmptyBox text="Choisissez d'abord un service" />
@@ -695,10 +689,10 @@ function ReservationContent() {
                             type="button"
                             key={dateValue}
                             onClick={() => selectDate(dateValue)}
-                            className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
+                            className={`rounded-2xl border p-4 text-left transition-all duration-200 ${
                               isSelected
-                                ? `${goldBg} border-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]`
-                                : "border-slate-200 bg-white text-slate-950 hover:-translate-y-1 hover:border-amber-500/50 dark:border-white/10 dark:bg-black/40 dark:text-white"
+                                ? `${goldBg} border-amber-500 text-black shadow-[0_12px_30px_rgba(217,119,6,0.25)]`
+                                : "border-slate-200 bg-white text-slate-950 shadow-sm hover:border-amber-500/50 hover:bg-amber-50/50 dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:hover:bg-amber-500/5"
                             }`}
                           >
                             <p className="text-sm font-bold capitalize">
@@ -724,16 +718,14 @@ function ReservationContent() {
 
               <div>
                 <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                    <Clock size={16} /> Horaire
-                  </h2>
+                  <SectionTitle icon={<Clock size={16} />} title="Horaire" />
 
                   {form.date_rdv && (
                     <span
                       className="
-                        rounded-full border px-4 py-1.5 text-xs font-medium backdrop-blur
+                        rounded-full border px-4 py-1.5 text-xs font-medium shadow-sm
                         border-slate-200 bg-white text-slate-600
-                        dark:border-white/10 dark:bg-black/40 dark:text-gray-300
+                        dark:border-white/10 dark:bg-zinc-950 dark:text-gray-300
                       "
                     >
                       {formatLongDate(form.date_rdv)}
@@ -750,9 +742,9 @@ function ReservationContent() {
                 ) : (
                   <div
                     className="
-                      rounded-2xl border p-5 backdrop-blur
-                      border-slate-200 bg-white/80
-                      dark:border-white/10 dark:bg-black/40
+                      rounded-2xl border p-5 shadow-sm
+                      border-slate-200 bg-white/90
+                      dark:border-white/10 dark:bg-zinc-950/70
                     "
                   >
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -767,13 +759,13 @@ function ReservationContent() {
                             key={creneau.id}
                             disabled={!disponible}
                             onClick={() => selectCreneau(creneau)}
-                            className={`rounded-xl border px-4 py-3 text-center font-bold transition-all duration-300 ${
+                            className={`rounded-xl border px-4 py-3 text-center font-bold transition-all duration-200 ${
                               disponible && !isSelected
-                                ? "border-amber-500/30 bg-white text-amber-700 hover:-translate-y-1 hover:border-amber-500/70 hover:bg-amber-50 dark:bg-black/30 dark:text-amber-400 dark:hover:bg-white/5"
+                                ? "border-amber-500/30 bg-white text-amber-700 shadow-sm hover:border-amber-500/70 hover:bg-amber-50 dark:bg-black/30 dark:text-amber-400 dark:hover:bg-amber-500/5"
                                 : ""
                             } ${
                               isSelected
-                                ? `${goldBg} border-amber-500 text-black shadow-lg shadow-amber-500/20`
+                                ? `${goldBg} border-amber-500 text-black shadow-[0_12px_30px_rgba(217,119,6,0.25)]`
                                 : ""
                             } ${
                               !disponible
@@ -812,21 +804,29 @@ function ReservationContent() {
                   onChange={handleChange}
                   rows={3}
                   className="
-                    w-full rounded-2xl border px-5 py-4 text-sm outline-none backdrop-blur transition
-                    border-slate-200 bg-white text-slate-950 placeholder:text-slate-400
-                    focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20
-                    dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder:text-gray-500
+                    w-full resize-none rounded-2xl border px-5 py-4 text-sm outline-none transition-all duration-200
+                    border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 shadow-sm
+                    hover:border-amber-400/60
+                    focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10
+                    dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:placeholder:text-gray-500
+                    dark:hover:border-amber-400/40
                   "
-                  placeholder="Indiquez vos préférences (coupe, barbe, soin...)"
+                  placeholder="Indiquez vos préférences : coupe, barbe, soin..."
                 />
               </div>
 
-              <motion.button
+              <button
                 type="submit"
                 disabled={loadingSubmit || !form.creneau_id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={`group flex w-full items-center justify-center gap-3 rounded-full px-8 py-5 text-[11px] font-black uppercase tracking-widest text-black transition-all disabled:cursor-not-allowed disabled:opacity-50 ${goldBg}`}
+                className={`
+                  group flex w-full items-center justify-center gap-3 rounded-full px-8 py-5
+                  text-[11px] font-black uppercase tracking-widest text-black
+                  shadow-[0_15px_40px_rgba(217,119,6,0.25)]
+                  transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(217,119,6,0.35)]
+                  active:translate-y-0
+                  disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0
+                  ${goldBg}
+                `}
               >
                 {loadingSubmit ? (
                   <>
@@ -843,16 +843,17 @@ function ReservationContent() {
                     />
                   </>
                 )}
-              </motion.button>
+              </button>
             </form>
-          </motion.div>
+          </div>
 
-          <motion.aside variants={itemVariants} className="space-y-6">
+          <aside className="space-y-6">
             <div
               className="
-                sticky top-24 rounded-[48px] border p-7 shadow-2xl backdrop-blur-xl
-                border-amber-500/20 bg-white/80
-                dark:bg-black/60
+                sticky top-24 rounded-[34px] border p-7
+                shadow-[0_20px_60px_rgba(15,23,42,0.08)]
+                border-amber-500/20 bg-white/95
+                dark:border-amber-500/20 dark:bg-zinc-950/90
               "
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 dark:text-amber-400">
@@ -862,6 +863,10 @@ function ReservationContent() {
               <h2 className="mt-6 font-serif text-3xl font-light text-slate-950 dark:text-white">
                 Récapitulatif
               </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                Vérifiez les informations avant de confirmer votre demande.
+              </p>
 
               <div className="mt-6 space-y-4">
                 <SummaryItem
@@ -909,12 +914,21 @@ function ReservationContent() {
                 text="Nos barbiers sont formés aux standards internationaux."
               />
             </div>
-          </motion.aside>
-        </motion.div>
+          </aside>
+        </div>
       </section>
 
       <SuccessModal open={showSuccess} onClose={() => setShowSuccess(false)} />
     </main>
+  );
+}
+
+function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <h3 className="mb-5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
+      {icon}
+      {title}
+    </h3>
   );
 }
 
@@ -948,10 +962,12 @@ function InputField({
         onChange={onChange}
         required={required}
         className="
-          w-full rounded-2xl border px-5 py-4 text-sm outline-none backdrop-blur transition
-          border-slate-200 bg-white text-slate-950 placeholder:text-slate-400
-          focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20
-          dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder:text-gray-500
+          w-full rounded-2xl border px-5 py-4 text-sm outline-none transition-all duration-200
+          border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 shadow-sm
+          hover:border-amber-400/60
+          focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10
+          dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:placeholder:text-gray-500
+          dark:hover:border-amber-400/40
         "
         placeholder={placeholder}
       />
@@ -963,8 +979,8 @@ function EmptyBox({ text }: { text: string }) {
   return (
     <div
       className="
-        rounded-2xl border border-dashed p-6 text-center text-sm backdrop-blur
-        border-slate-300 bg-white/70 text-slate-500
+        rounded-2xl border border-dashed p-6 text-center text-sm shadow-sm
+        border-slate-300 bg-white/80 text-slate-500
         dark:border-white/20 dark:bg-black/30 dark:text-gray-400
       "
     >
@@ -977,8 +993,8 @@ function LoadingBox({ text }: { text: string }) {
   return (
     <div
       className="
-        flex items-center justify-center gap-3 rounded-2xl border p-6 text-sm backdrop-blur
-        border-slate-200 bg-white/70 text-amber-600
+        flex items-center justify-center gap-3 rounded-2xl border p-6 text-sm shadow-sm
+        border-slate-200 bg-white/80 text-amber-600
         dark:border-white/10 dark:bg-black/30 dark:text-amber-400
       "
     >
@@ -992,7 +1008,7 @@ function WarningBox({ text }: { text: string }) {
   return (
     <div
       className="
-        rounded-2xl border p-6 text-center text-sm backdrop-blur
+        rounded-2xl border p-6 text-center text-sm shadow-sm
         border-red-500/20 bg-red-500/10 text-red-600
         dark:text-red-400
       "
@@ -1009,8 +1025,8 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div
       className="
-        rounded-2xl border p-4 backdrop-blur
-        border-slate-200 bg-white/70
+        rounded-2xl border p-4 shadow-sm
+        border-slate-200 bg-white/85
         dark:border-white/10 dark:bg-black/30
       "
     >
@@ -1043,7 +1059,7 @@ function InfoCard({
   return (
     <div
       className="
-        mt-4 rounded-2xl border p-5
+        mt-4 rounded-2xl border p-5 shadow-sm
         border-amber-500/20 bg-amber-50/70
         dark:bg-amber-500/5
       "
@@ -1058,7 +1074,7 @@ function InfoCard({
             {title}
           </p>
 
-          <p className="mt-1 text-xs text-slate-600 dark:text-gray-400">
+          <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-gray-400">
             {text}
           </p>
         </div>
