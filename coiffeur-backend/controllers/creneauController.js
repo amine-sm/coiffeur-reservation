@@ -8,6 +8,29 @@ function isValidTime(value) {
     return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""));
 }
 
+function toMinutes(time) {
+    const [hours, minutes] = String(time).split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+function isCreneauCompatible(heureDebut, dureeService, rendezvousExistants) {
+    const newStart = toMinutes(heureDebut);
+    const newEnd = newStart + Number(dureeService || 0);
+
+    for (const rdv of rendezvousExistants) {
+        const oldStart = toMinutes(rdv.heure_rdv);
+        const oldEnd = oldStart + Number(rdv.service_duree || 0);
+
+        const overlap = newStart < oldEnd && newEnd > oldStart;
+
+        if (overlap) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /*
     Supprime automatiquement les créneaux passés non réservés.
     Les créneaux réservés restent pour garder le lien avec les rendez-vous actifs.
@@ -32,6 +55,24 @@ async function isPastDateTime(date_creneau, heure_creneau) {
     );
 
     return rows[0].is_past === 1;
+}
+
+async function getRendezvousByDate(date) {
+    const [rdvRows] = await pool.query(
+        `
+        SELECT 
+            TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
+            s.duree AS service_duree
+        FROM rendezvous r
+        LEFT JOIN services s ON s.id = r.service_id
+        WHERE r.date_rdv = ?
+          AND r.statut <> 'annule'
+          AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
+        `,
+        [date]
+    );
+
+    return rdvRows;
 }
 
 const getAvailableCreneaux = async (req, res) => {
@@ -79,9 +120,23 @@ const getAvailableCreneaux = async (req, res) => {
 
         const [rows] = await pool.query(sql, params);
 
+        let data = rows;
+
+        if (date) {
+            const rdvRows = await getRendezvousByDate(date);
+
+            data = rows.filter((creneau) =>
+                isCreneauCompatible(
+                    creneau.heure_creneau,
+                    creneau.service_duree,
+                    rdvRows
+                )
+            );
+        }
+
         res.json({
             success: true,
-            data: rows
+            data
         });
     } catch (error) {
         res.status(500).json({
@@ -134,9 +189,19 @@ const getPublicCreneauxByDate = async (req, res) => {
             [service_id, date]
         );
 
+        const rdvRows = await getRendezvousByDate(date);
+
+        const filteredRows = rows.filter((creneau) =>
+            isCreneauCompatible(
+                creneau.heure_creneau,
+                creneau.service_duree,
+                rdvRows
+            )
+        );
+
         res.json({
             success: true,
-            data: rows
+            data: filteredRows
         });
     } catch (error) {
         res.status(500).json({
@@ -177,9 +242,46 @@ const getPublicAvailableDates = async (req, res) => {
             [service_id]
         );
 
+        const finalDates = [];
+
+        for (const row of rows) {
+            const [creneaux] = await pool.query(
+                `
+                SELECT 
+                    c.id,
+                    TIME_FORMAT(c.heure_creneau, '%H:%i') AS heure_creneau,
+                    s.duree AS service_duree
+                FROM creneaux_disponibles c
+                LEFT JOIN services s ON s.id = c.service_id
+                WHERE c.service_id = ?
+                  AND c.date_creneau = ?
+                  AND c.statut = 'disponible'
+                  AND TIMESTAMP(c.date_creneau, c.heure_creneau) >= NOW()
+                `,
+                [service_id, row.date_creneau]
+            );
+
+            const rdvRows = await getRendezvousByDate(row.date_creneau);
+
+            const availableCreneaux = creneaux.filter((creneau) =>
+                isCreneauCompatible(
+                    creneau.heure_creneau,
+                    creneau.service_duree,
+                    rdvRows
+                )
+            );
+
+            if (availableCreneaux.length > 0) {
+                finalDates.push({
+                    ...row,
+                    total_disponibles: availableCreneaux.length
+                });
+            }
+        }
+
         res.json({
             success: true,
-            data: rows
+            data: finalDates
         });
     } catch (error) {
         res.status(500).json({
@@ -311,10 +413,6 @@ const createCreneau = async (req, res) => {
             });
         }
 
-        /*
-            Si cette date/heure est déjà réservée dans un service,
-            on interdit l'ajout pour éviter une double réservation globale.
-        */
         const [reservedSameTime] = await pool.query(
             `
             SELECT id
@@ -334,9 +432,6 @@ const createCreneau = async (req, res) => {
             });
         }
 
-        /*
-            Empêche de créer deux fois le même service à la même date/heure.
-        */
         const [duplicates] = await pool.query(
             `
             SELECT service_id

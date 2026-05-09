@@ -35,6 +35,8 @@ const goldText =
 
 const goldBg = "bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]";
 
+const TELEGRAM_BOT_USERNAME = "prestige_salon_rdv_bot";
+
 function cleanDate(value: string | Date | null | undefined) {
   if (!value) return "";
   const text = String(value);
@@ -77,10 +79,16 @@ function formatLongDate(dateValue: string) {
 function SuccessModal({
   open,
   onClose,
+  rdvId,
 }: {
   open: boolean;
   onClose: () => void;
+  rdvId: string | number | null;
 }) {
+  const telegramLink = rdvId
+    ? `https://t.me/${TELEGRAM_BOT_USERNAME}?start=rdv_${rdvId}`
+    : "";
+
   return (
     <AnimatePresence>
       {open && (
@@ -115,10 +123,42 @@ function SuccessModal({
               Votre créneau a bien été réservé et est temporairement bloqué.
               <br />
               <span className="font-semibold text-amber-600 dark:text-amber-400">
-                Vous recevrez une confirmation définitive par téléphone ou email
-                une fois validée par le coiffeur.
+                Vous recevrez une confirmation définitive par email une fois
+                validée par le coiffeur.
               </span>
             </p>
+
+            {rdvId && (
+              <div className="mt-7 rounded-3xl border border-sky-500/20 bg-sky-500/10 p-5 text-left">
+                <p className="text-sm font-bold text-slate-950 dark:text-white">
+                  Recevoir la réponse sur Telegram
+                </p>
+
+                <p className="mt-2 text-xs leading-6 text-slate-600 dark:text-gray-300">
+                  Cliquez sur le bouton ci-dessous, puis appuyez sur{" "}
+                  <span className="font-bold text-sky-600 dark:text-sky-400">
+                    Start / Démarrer
+                  </span>{" "}
+                  dans Telegram. Vous recevrez ensuite la confirmation ou
+                  l’annulation directement dans le bot.
+                </p>
+
+                <a
+                  href={telegramLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="
+                    mt-4 flex w-full items-center justify-center gap-2 rounded-full
+                    bg-sky-500 px-6 py-4 text-[11px] font-black uppercase tracking-widest text-white
+                    shadow-[0_15px_40px_rgba(14,165,233,0.25)]
+                    transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-600
+                    active:translate-y-0
+                  "
+                >
+                  Recevoir ma confirmation sur Telegram
+                </a>
+              </div>
+            )}
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-slate-500 dark:text-gray-400">
               <Sparkles
@@ -181,6 +221,7 @@ function ReservationContent() {
   const [loadingDates, setLoadingDates] = useState(false);
   const [loadingCreneaux, setLoadingCreneaux] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [lastRdvId, setLastRdvId] = useState<string | number | null>(null);
 
   const [form, setForm] = useState({
     nom_client: "",
@@ -369,6 +410,7 @@ function ReservationContent() {
       });
 
       if (res.success) {
+        setLastRdvId(res.data?.id || null);
         setShowSuccess(true);
 
         const oldServiceId = form.service_id;
@@ -918,7 +960,11 @@ function ReservationContent() {
         </div>
       </section>
 
-      <SuccessModal open={showSuccess} onClose={() => setShowSuccess(false)} />
+      <SuccessModal
+        open={showSuccess}
+        onClose={() => setShowSuccess(false)}
+        rdvId={lastRdvId}
+      />
     </main>
   );
 }

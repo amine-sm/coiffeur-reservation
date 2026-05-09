@@ -8,22 +8,29 @@ const clientRoutes = require("./routes/clientRoutes");
 const rendezvousRoutes = require("./routes/rendezvousRoutes");
 const creneauRoutes = require("./routes/creneauRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-
-// IMPORTANT : on importe la fonction qui supprime les RDV expirés
+const analyticsRoutes = require("./routes/analyticsRoutes");
 const {
     deleteExpiredRendezvous
 } = require("./controllers/rendezvousController");
 
+const {
+    initTelegramBot
+} = require("./controllers/telegramBotController");
+
 const app = express();
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+    : [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001"
+    ];
 
 app.use(
     cors({
-        origin: [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001"
-        ],
+        origin: allowedOrigins,
         credentials: true
     })
 );
@@ -31,8 +38,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// IMPORTANT : rendre le dossier uploads accessible publiquement
-// Exemple image : http://localhost:4000/uploads/services/photo.png
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/", (req, res) => {
@@ -47,6 +52,7 @@ app.use("/api/clients", clientRoutes);
 app.use("/api/rendezvous", rendezvousRoutes);
 app.use("/api/creneaux", creneauRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
@@ -70,27 +76,19 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
     console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
 
-    // Nettoyage au démarrage du serveur
-    cleanExpiredRdvOnServerStart();
+    initTelegramBot();
 
-    // Nettoyage automatique chaque 1 minute
+    cleanExpiredRdvOnServerStart();
     startExpiredRdvCleaner();
 });
 
-/*
-    Cette fonction nettoie les RDV expirés directement au démarrage.
-    Exemple :
-    - Le serveur était fermé
-    - Des RDV sont passés
-    - Quand tu relances le serveur, ils seront supprimés automatiquement
-*/
 async function cleanExpiredRdvOnServerStart() {
     try {
         const result = await deleteExpiredRendezvous();
 
         if (result.deletedRendezvous > 0) {
             console.log(
-                `🧹 Nettoyage démarrage : ${result.deletedRendezvous} RDV expiré(s) supprimé(s), ${result.deletedCreneaux} créneau(x) supprimé(s)`
+                `🧹 Nettoyage démarrage : ${result.deletedRendezvous} RDV expiré(s) supprimé(s), ${result.updatedCreneaux} créneau(x) libéré(s)`
             );
         } else {
             console.log("✅ Aucun RDV expiré au démarrage");
@@ -103,10 +101,6 @@ async function cleanExpiredRdvOnServerStart() {
     }
 }
 
-/*
-    Cette fonction tourne chaque 1 minute.
-    Si un RDV dépasse son heure, il sera supprimé automatiquement.
-*/
 function startExpiredRdvCleaner() {
     setInterval(async () => {
         try {
@@ -114,7 +108,7 @@ function startExpiredRdvCleaner() {
 
             if (result.deletedRendezvous > 0) {
                 console.log(
-                    `🧹 Nettoyage automatique : ${result.deletedRendezvous} RDV expiré(s) supprimé(s), ${result.deletedCreneaux} créneau(x) supprimé(s)`
+                    `🧹 Nettoyage automatique : ${result.deletedRendezvous} RDV expiré(s) supprimé(s), ${result.updatedCreneaux} créneau(x) libéré(s)`
                 );
             }
         } catch (error) {

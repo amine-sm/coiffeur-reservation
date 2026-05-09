@@ -1,5 +1,133 @@
 const pool = require("../config/db");
 
+const {
+    notifyNewReservation,
+    notifyStatusChange
+} = require("../services/notificationService");
+
+/*
+    Convertit HH:mm en minutes.
+    Exemple : 10:30 => 630
+*/
+function toMinutes(time) {
+    const [hours, minutes] = String(time).split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+/*
+    Convertit minutes en HH:mm.
+    Exemple : 630 => 10:30
+*/
+function minutesToTime(totalMinutes) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+/*
+    Vérifie si un nouveau RDV chevauche un autre RDV existant.
+    Exemple :
+    - ancien RDV : 10:00 -> 11:00
+    - nouveau RDV : 10:30 -> 11:00
+    => chevauchement, donc refusé.
+*/
+async function hasOverlapRendezvous(
+    connection,
+    dateRdv,
+    heureDebut,
+    duree,
+    excludeRdvId = null
+) {
+    const newStart = toMinutes(heureDebut);
+    const newEnd = newStart + Number(duree || 0);
+
+    let sql = `
+        SELECT 
+            r.id,
+            TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
+            s.duree AS service_duree
+        FROM rendezvous r
+        LEFT JOIN services s ON s.id = r.service_id
+        WHERE r.date_rdv = ?
+          AND r.statut <> 'annule'
+          AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
+    `;
+
+    const params = [dateRdv];
+
+    if (excludeRdvId) {
+        sql += " AND r.id <> ?";
+        params.push(excludeRdvId);
+    }
+
+    sql += " FOR UPDATE";
+
+    const [rows] = await connection.query(sql, params);
+
+    for (const row of rows) {
+        const oldStart = toMinutes(row.heure_rdv);
+        const oldEnd = oldStart + Number(row.service_duree || 0);
+
+        const overlap = newStart < oldEnd && newEnd > oldStart;
+
+        if (overlap) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+    Réserve tous les créneaux compris dans la durée du service.
+    Exemple :
+    - début : 10:00
+    - durée : 60 min
+    => bloque 10:00, 10:15, 10:30, 10:45 si ces créneaux existent.
+*/
+async function reserveCreneauxByDuration(connection, dateRdv, heureDebut, duree) {
+    const start = toMinutes(heureDebut);
+    const end = start + Number(duree || 0);
+
+    const startTime = minutesToTime(start);
+    const endTime = minutesToTime(end);
+
+    await connection.query(
+        `
+        UPDATE creneaux_disponibles
+        SET statut = 'reserve'
+        WHERE date_creneau = ?
+          AND TIME_FORMAT(heure_creneau, '%H:%i') >= ?
+          AND TIME_FORMAT(heure_creneau, '%H:%i') < ?
+        `,
+        [dateRdv, startTime, endTime]
+    );
+}
+
+/*
+    Libère tous les créneaux compris dans la durée du service.
+    Utilisé quand un RDV est annulé ou supprimé.
+*/
+async function libererCreneauxByDuration(connection, dateRdv, heureDebut, duree) {
+    const start = toMinutes(heureDebut);
+    const end = start + Number(duree || 0);
+
+    const startTime = minutesToTime(start);
+    const endTime = minutesToTime(end);
+
+    await connection.query(
+        `
+        UPDATE creneaux_disponibles
+        SET statut = 'disponible'
+        WHERE date_creneau = ?
+          AND TIME_FORMAT(heure_creneau, '%H:%i') >= ?
+          AND TIME_FORMAT(heure_creneau, '%H:%i') < ?
+        `,
+        [dateRdv, startTime, endTime]
+    );
+}
+
 /*
     Supprime les créneaux passés non réservés.
 */
@@ -15,7 +143,7 @@ async function deletePastAvailableCreneaux(connection = pool) {
     Supprime automatiquement les rendez-vous passés.
     Important :
     - Supprime le RDV passé.
-    - Supprime tous les créneaux de la même date/heure, car la réservation bloque tous les services.
+    - Libère les créneaux de la durée du service.
     - Ne supprime pas le client.
 */
 async function deleteExpiredRendezvous(connection = pool) {
@@ -29,12 +157,14 @@ async function deleteExpiredRendezvous(connection = pool) {
 
         const [expiredRows] = await conn.query(`
             SELECT 
-                id,
-                creneau_id,
-                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS date_rdv,
-                TIME_FORMAT(heure_rdv, '%H:%i') AS heure_rdv
-            FROM rendezvous
-            WHERE TIMESTAMP(date_rdv, heure_rdv) < NOW()
+                r.id,
+                r.creneau_id,
+                DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
+                TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
+                s.duree AS service_duree
+            FROM rendezvous r
+            LEFT JOIN services s ON s.id = r.service_id
+            WHERE TIMESTAMP(r.date_rdv, r.heure_rdv) < NOW()
             FOR UPDATE
         `);
 
@@ -45,25 +175,39 @@ async function deleteExpiredRendezvous(connection = pool) {
 
             return {
                 deletedRendezvous: 0,
-                deletedCreneaux: 0
+                updatedCreneaux: 0
             };
         }
 
         const rdvIds = expiredRows.map((row) => row.id);
-
-        let deletedCreneaux = 0;
+        let updatedCreneaux = 0;
 
         for (const row of expiredRows) {
-            const [deleteCreneauxResult] = await conn.query(
+            const [creneauxRows] = await conn.query(
                 `
-                DELETE FROM creneaux_disponibles
+                SELECT id
+                FROM creneaux_disponibles
                 WHERE date_creneau = ?
-                  AND heure_creneau = ?
+                  AND TIME_FORMAT(heure_creneau, '%H:%i') >= ?
+                  AND TIME_FORMAT(heure_creneau, '%H:%i') < ?
                 `,
-                [row.date_rdv, row.heure_rdv]
+                [
+                    row.date_rdv,
+                    row.heure_rdv,
+                    minutesToTime(
+                        toMinutes(row.heure_rdv) + Number(row.service_duree || 0)
+                    )
+                ]
             );
 
-            deletedCreneaux += deleteCreneauxResult.affectedRows || 0;
+            updatedCreneaux += creneauxRows.length;
+
+            await libererCreneauxByDuration(
+                conn,
+                row.date_rdv,
+                row.heure_rdv,
+                row.service_duree
+            );
         }
 
         await conn.query(
@@ -80,7 +224,7 @@ async function deleteExpiredRendezvous(connection = pool) {
 
         return {
             deletedRendezvous: rdvIds.length,
-            deletedCreneaux
+            updatedCreneaux
         };
     } catch (error) {
         if (ownConnection) {
@@ -172,44 +316,46 @@ const createRendezvous = async (req, res) => {
             });
         }
 
-        /*
-            On verrouille tous les créneaux de la même date/heure.
-            S'il y en a déjà un réservé, on bloque la réservation.
-        */
-        const [sameTimeRows] = await connection.query(
-            `
-            SELECT 
-                id,
-                statut
-            FROM creneaux_disponibles
-            WHERE date_creneau = ?
-              AND heure_creneau = ?
-            FOR UPDATE
-            `,
-            [creneau.date_creneau, creneau.heure_creneau]
+        const hasOverlap = await hasOverlapRendezvous(
+            connection,
+            creneau.date_creneau,
+            creneau.heure_creneau,
+            service.duree
         );
 
-        const hasReservedSameTime = sameTimeRows.some(
-            (row) => row.statut === "reserve"
-        );
-
-        if (hasReservedSameTime) {
+        if (hasOverlap) {
             await connection.rollback();
             return res.status(409).json({
                 success: false,
-                message: "Cette heure est déjà réservée pour un autre service"
+                message: "Ce créneau chevauche déjà un autre rendez-vous. Veuillez choisir une autre heure."
             });
         }
 
         let clientId = null;
 
         const [clients] = await connection.query(
-            "SELECT id FROM clients WHERE telephone = ? LIMIT 1",
+            "SELECT id, telegram_chat_id FROM clients WHERE telephone = ? LIMIT 1",
             [telephone]
         );
 
         if (clients.length > 0) {
             clientId = clients[0].id;
+
+            await connection.query(
+                `
+                UPDATE clients
+                SET nom = ?,
+                    prenom = ?,
+                    email = ?
+                WHERE id = ?
+                `,
+                [
+                    nom_client,
+                    prenom_client || null,
+                    email || null,
+                    clientId
+                ]
+            );
         } else {
             const [newClient] = await connection.query(
                 `
@@ -267,21 +413,11 @@ const createRendezvous = async (req, res) => {
             ]
         );
 
-        /*
-            Réservation globale :
-            Tous les créneaux qui ont la même date et la même heure deviennent réservés.
-        */
-        await connection.query(
-            `
-            UPDATE creneaux_disponibles
-            SET statut = 'reserve'
-            WHERE date_creneau = ?
-              AND heure_creneau = ?
-            `,
-            [
-                creneau.date_creneau,
-                creneau.heure_creneau
-            ]
+        await reserveCreneauxByDuration(
+            connection,
+            creneau.date_creneau,
+            creneau.heure_creneau,
+            service.duree
         );
 
         const [rdvRows] = await connection.query(
@@ -295,6 +431,8 @@ const createRendezvous = async (req, res) => {
                 r.telephone,
                 r.service_id,
                 r.creneau_id,
+                r.telegram_chat_id,
+                cl.telegram_chat_id AS client_telegram_chat_id,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
                 r.statut,
@@ -304,12 +442,17 @@ const createRendezvous = async (req, res) => {
                 s.duree AS service_duree
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
+            LEFT JOIN clients cl ON cl.id = r.client_id
             WHERE r.id = ?
             `,
             [rdvResult.insertId]
         );
 
         await connection.commit();
+
+        notifyNewReservation(rdvRows[0]).catch((error) => {
+            console.error("❌ Erreur notification nouvelle réservation :", error.message);
+        });
 
         res.status(201).json({
             success: true,
@@ -346,6 +489,8 @@ const getAllRendezvous = async (req, res) => {
                 r.telephone,
                 r.service_id,
                 r.creneau_id,
+                r.telegram_chat_id,
+                cl.telegram_chat_id AS client_telegram_chat_id,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
                 r.statut,
@@ -359,6 +504,7 @@ const getAllRendezvous = async (req, res) => {
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
+            LEFT JOIN clients cl ON cl.id = r.client_id
             WHERE TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
         `;
 
@@ -409,6 +555,8 @@ const getRendezvousById = async (req, res) => {
                 r.telephone,
                 r.service_id,
                 r.creneau_id,
+                r.telegram_chat_id,
+                cl.telegram_chat_id AS client_telegram_chat_id,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
                 r.statut,
@@ -422,6 +570,7 @@ const getRendezvousById = async (req, res) => {
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
+            LEFT JOIN clients cl ON cl.id = r.client_id
             WHERE r.id = ?
               AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
             `,
@@ -473,12 +622,14 @@ const updateRendezvousStatut = async (req, res) => {
         const [rdvRows] = await connection.query(
             `
             SELECT 
-                *,
-                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS clean_date_rdv,
-                TIME_FORMAT(heure_rdv, '%H:%i') AS clean_heure_rdv
-            FROM rendezvous
-            WHERE id = ?
-              AND TIMESTAMP(date_rdv, heure_rdv) >= NOW()
+                r.*,
+                DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS clean_date_rdv,
+                TIME_FORMAT(r.heure_rdv, '%H:%i') AS clean_heure_rdv,
+                s.duree AS service_duree
+            FROM rendezvous r
+            LEFT JOIN services s ON s.id = r.service_id
+            WHERE r.id = ?
+              AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
             FOR UPDATE
             `,
             [id]
@@ -500,32 +651,24 @@ const updateRendezvousStatut = async (req, res) => {
         );
 
         if (statut === "annule") {
-            await connection.query(
-                `
-                UPDATE creneaux_disponibles
-                SET statut = 'disponible'
-                WHERE date_creneau = ?
-                  AND heure_creneau = ?
-                `,
-                [
-                    rdv.clean_date_rdv,
-                    rdv.clean_heure_rdv
-                ]
+            await libererCreneauxByDuration(
+                connection,
+                rdv.clean_date_rdv,
+                rdv.clean_heure_rdv,
+                rdv.service_duree
             );
         }
 
-        if (statut === "confirme" || statut === "termine") {
-            await connection.query(
-                `
-                UPDATE creneaux_disponibles
-                SET statut = 'reserve'
-                WHERE date_creneau = ?
-                  AND heure_creneau = ?
-                `,
-                [
-                    rdv.clean_date_rdv,
-                    rdv.clean_heure_rdv
-                ]
+        if (
+            statut === "confirme" ||
+            statut === "termine" ||
+            statut === "en_attente"
+        ) {
+            await reserveCreneauxByDuration(
+                connection,
+                rdv.clean_date_rdv,
+                rdv.clean_heure_rdv,
+                rdv.service_duree
             );
         }
 
@@ -540,6 +683,8 @@ const updateRendezvousStatut = async (req, res) => {
                 r.telephone,
                 r.service_id,
                 r.creneau_id,
+                r.telegram_chat_id,
+                cl.telegram_chat_id AS client_telegram_chat_id,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
                 r.statut,
@@ -549,12 +694,17 @@ const updateRendezvousStatut = async (req, res) => {
                 s.duree AS service_duree
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
+            LEFT JOIN clients cl ON cl.id = r.client_id
             WHERE r.id = ?
             `,
             [id]
         );
 
         await connection.commit();
+
+        notifyStatusChange(rows[0], statut).catch((error) => {
+            console.error("❌ Erreur notification changement statut :", error.message);
+        });
 
         res.json({
             success: true,
@@ -588,11 +738,13 @@ const deleteRendezvous = async (req, res) => {
         const [rdvRows] = await connection.query(
             `
             SELECT 
-                *,
-                DATE_FORMAT(date_rdv, '%Y-%m-%d') AS clean_date_rdv,
-                TIME_FORMAT(heure_rdv, '%H:%i') AS clean_heure_rdv
-            FROM rendezvous
-            WHERE id = ?
+                r.*,
+                DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS clean_date_rdv,
+                TIME_FORMAT(r.heure_rdv, '%H:%i') AS clean_heure_rdv,
+                s.duree AS service_duree
+            FROM rendezvous r
+            LEFT JOIN services s ON s.id = r.service_id
+            WHERE r.id = ?
             FOR UPDATE
             `,
             [id]
@@ -613,28 +765,18 @@ const deleteRendezvous = async (req, res) => {
             [id]
         );
 
-        /*
-            Suppression manuelle d'un RDV :
-            On libère tous les créneaux de la même date/heure.
-        */
-        await connection.query(
-            `
-            UPDATE creneaux_disponibles
-            SET statut = 'disponible'
-            WHERE date_creneau = ?
-              AND heure_creneau = ?
-            `,
-            [
-                rdv.clean_date_rdv,
-                rdv.clean_heure_rdv
-            ]
+        await libererCreneauxByDuration(
+            connection,
+            rdv.clean_date_rdv,
+            rdv.clean_heure_rdv,
+            rdv.service_duree
         );
 
         await connection.commit();
 
         res.json({
             success: true,
-            message: "Rendez-vous supprimé et créneau libéré avec succès"
+            message: "Rendez-vous supprimé et créneaux libérés avec succès"
         });
     } catch (error) {
         await connection.rollback();

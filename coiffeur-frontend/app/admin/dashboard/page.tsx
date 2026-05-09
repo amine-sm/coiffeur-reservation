@@ -8,6 +8,7 @@ import { dashboardService } from "@/lib/dashboardService";
 import { serviceService } from "@/lib/serviceService";
 import { rendezvousService } from "@/lib/rendezvousService";
 import { creneauService } from "@/lib/creneauService";
+import AdminHeader from "@/components/admin/AdminHeader";
 import type {
   Creneau,
   DashboardStats,
@@ -47,9 +48,7 @@ const goldText =
 
 const goldBg = "bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]";
 
-const hours = Array.from({ length: 24 }, (_, i) =>
-  String(i).padStart(2, "0")
-);
+const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 
 const minutesOptions = ["00", "15", "30", "45"];
 const pageSizeOptions = [10, 20, 50];
@@ -79,8 +78,7 @@ const tableWrapperClass =
 
 const tableClass = "w-full border-collapse text-left";
 
-const theadClass =
-  "bg-slate-100 text-slate-900 dark:bg-black dark:!text-white";
+const theadClass = "bg-slate-100 text-slate-900 dark:bg-black dark:!text-white";
 
 const thClass =
   "whitespace-nowrap px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] sm:px-4 sm:py-4 sm:text-xs " +
@@ -112,6 +110,18 @@ type AlertState = {
   message: string;
 } | null;
 
+type ConfirmVariant = "delete" | "edit" | "warning";
+
+type ConfirmState = {
+  open: boolean;
+  variant: ConfirmVariant;
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText?: string;
+  onConfirm: () => void | Promise<void>;
+} | null;
+
 // ============================================================
 // FONCTIONS UTILES
 // ============================================================
@@ -136,6 +146,17 @@ function getTodayDateValue(): string {
   return `${year}-${month}-${day}`;
 }
 
+function getDateByOffset(offset: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function isPastCreneau(dateValue: string, timeValue: string): boolean {
   if (!dateValue || !timeValue) return false;
   const selectedDateTime = new Date(`${dateValue}T${timeValue}:00`);
@@ -154,6 +175,39 @@ function getCurrentTimeValue(): string {
 function clampPage(page: number, totalPages: number) {
   if (totalPages <= 0) return 1;
   return Math.min(Math.max(page, 1), totalPages);
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return "Erreur inconnue. Vérifiez la console ou le backend.";
+}
+
+function getApiMessage(res: {
+  success?: boolean;
+  message?: string;
+  error?: string;
+}): string {
+  return (
+    res.message || res.error || "Une erreur est survenue pendant l'opération."
+  );
+}
+
+function isNetworkError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("networkerror") ||
+    message.includes("load failed") ||
+    message.includes("network request failed")
+  );
 }
 
 // ============================================================
@@ -325,6 +379,111 @@ function PaginationControls({
 // COMPONENTS UI
 // ============================================================
 
+function ConfirmDialog({
+  confirm,
+  onClose,
+}: {
+  confirm: ConfirmState;
+  onClose: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!confirm?.open) return null;
+
+  const config: Record<
+    ConfirmVariant,
+    {
+      icon: React.ReactNode;
+      iconClass: string;
+      buttonClass: string;
+    }
+  > = {
+    delete: {
+      icon: <Trash2 size={24} />,
+      iconClass:
+        "border-red-400/30 bg-red-500/10 text-red-600 dark:text-red-300",
+      buttonClass:
+        "bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white hover:opacity-90",
+    },
+    edit: {
+      icon: <Pencil size={24} />,
+      iconClass:
+        "border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300",
+      buttonClass: `${goldBg} text-black hover:opacity-90`,
+    },
+    warning: {
+      icon: <AlertCircle size={24} />,
+      iconClass:
+        "border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300",
+      buttonClass: `${goldBg} text-black hover:opacity-90`,
+    },
+  };
+
+  async function handleConfirm() {
+    try {
+      setSubmitting(true);
+      await confirm.onConfirm();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-amber-400/25 bg-white p-5 shadow-2xl shadow-black/30 dark:bg-[#0D0D0D] sm:p-6">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]" />
+
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-900 hover:text-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white dark:hover:text-black"
+          title="Fermer"
+        >
+          <X size={17} />
+        </button>
+
+        <div className="pr-10">
+          <div
+            className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border ${config[confirm.variant].iconClass}`}
+          >
+            {config[confirm.variant].icon}
+          </div>
+
+          <h3 className={`text-xl font-serif font-black ${goldText}`}>
+            {confirm.title}
+          </h3>
+
+          <p className="mt-3 text-sm font-semibold leading-6 text-slate-600 dark:text-gray-300">
+            {confirm.message}
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+          >
+            {confirm.cancelText || "Annuler"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className={`rounded-2xl px-5 py-3 text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${config[confirm.variant].buttonClass}`}
+          >
+            {submitting ? "Traitement..." : confirm.confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThemeModeButton() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -396,8 +555,7 @@ function PrettyAlert({
       title: "Erreur",
       wrapper:
         "border-red-400/30 bg-gradient-to-r from-red-500/15 via-white to-white dark:via-[#0D0D0D] dark:to-[#0D0D0D]",
-      iconBox:
-        "bg-red-400/15 text-red-600 dark:text-red-300 border-red-400/30",
+      iconBox: "bg-red-400/15 text-red-600 dark:text-red-300 border-red-400/30",
       glow: "shadow-red-500/10",
     },
     warning: {
@@ -414,8 +572,7 @@ function PrettyAlert({
       title: "Information",
       wrapper:
         "border-sky-400/30 bg-gradient-to-r from-sky-500/15 via-white to-white dark:via-[#0D0D0D] dark:to-[#0D0D0D]",
-      iconBox:
-        "bg-sky-400/15 text-sky-600 dark:text-sky-300 border-sky-400/30",
+      iconBox: "bg-sky-400/15 text-sky-600 dark:text-sky-300 border-sky-400/30",
       glow: "shadow-sky-500/10",
     },
   };
@@ -517,8 +674,7 @@ function CreneauBadge({ statut }: { statut: string }) {
   const badgeStyles: Record<string, string> = {
     disponible:
       "border-emerald-400/40 bg-emerald-400/10 !text-emerald-600 dark:!text-emerald-300",
-    reserve:
-      "border-red-400/40 bg-red-400/10 !text-red-600 dark:!text-red-300",
+    reserve: "border-red-400/40 bg-red-400/10 !text-red-600 dark:!text-red-300",
     bloque:
       "border-amber-400/40 bg-amber-400/10 !text-amber-600 dark:!text-amber-300",
   };
@@ -547,10 +703,8 @@ function RdvBadge({ statut }: { statut: RendezvousStatut }) {
       "border-amber-400/40 bg-amber-400/10 !text-amber-600 dark:!text-amber-300",
     confirme:
       "border-emerald-400/40 bg-emerald-400/10 !text-emerald-600 dark:!text-emerald-300",
-    termine:
-      "border-sky-400/40 bg-sky-400/10 !text-sky-600 dark:!text-sky-300",
-    annule:
-      "border-red-400/40 bg-red-400/10 !text-red-600 dark:!text-red-300",
+    termine: "border-sky-400/40 bg-sky-400/10 !text-sky-600 dark:!text-sky-300",
+    annule: "border-red-400/40 bg-red-400/10 !text-red-600 dark:!text-red-300",
   };
 
   const labels: Record<RendezvousStatut, string> = {
@@ -607,6 +761,155 @@ function DashboardHeader({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+function TopDayFilter({
+  date,
+  totalRdv,
+  totalCreneaux,
+  recetteJour,
+  enAttente,
+  confirmes,
+  termines,
+  annules,
+  onDateChange,
+  onToday,
+  onTomorrow,
+  onRefresh,
+}: {
+  date: string;
+  totalRdv: number;
+  totalCreneaux: number;
+  recetteJour: number;
+  enAttente: number;
+  confirmes: number;
+  termines: number;
+  annules: number;
+  onDateChange: (date: string) => void;
+  onToday: () => void;
+  onTomorrow: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="mx-auto mb-6 max-w-7xl px-4 sm:px-6">
+      <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/30 sm:rounded-3xl">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-amber-500/10 via-white to-white p-4 dark:border-white/10 dark:from-amber-500/10 dark:via-[#0D0D0D] dark:to-[#0D0D0D] sm:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                <CalendarDays size={15} />
+                Filtre par jour
+              </div>
+
+              <h2 className={`mt-3 text-2xl font-serif font-black ${goldText}`}>
+                Vue du jour
+              </h2>
+
+              <p className="mt-1 text-sm font-semibold leading-6 text-slate-500 dark:text-gray-400">
+                Choisissez une date pour afficher directement les rendez-vous,
+                les créneaux disponibles et la recette terminée de cette journée.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] xl:min-w-[740px]">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-gray-400">
+                  Date du dashboard
+                </label>
+
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => onDateChange(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-black text-slate-900 outline-none transition focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 dark:border-white/20 dark:bg-[#111111] dark:text-white sm:text-sm"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={onToday}
+                className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 sm:self-end"
+              >
+                Aujourd’hui
+              </button>
+
+              <button
+                type="button"
+                onClick={onTomorrow}
+                className="flex items-center justify-center rounded-2xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-black dark:text-amber-300 sm:self-end"
+              >
+                Demain
+              </button>
+
+              <button
+                type="button"
+                onClick={onRefresh}
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-black transition hover:opacity-90 active:scale-[0.98] sm:self-end ${goldBg}`}
+              >
+                <RefreshCcw size={15} />
+                Actualiser
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 sm:p-5">
+          <TopDayStat
+            title="Recette du jour"
+            value={`${Number(recetteJour || 0).toLocaleString("fr-FR")} DZD`}
+            tone="gold"
+          />
+
+          <TopDayStat title="RDV affichés" value={totalRdv} tone="sky" />
+
+          <TopDayStat
+            title="Créneaux dispo."
+            value={totalCreneaux}
+            tone="emerald"
+          />
+
+          <TopDayStat title="En attente" value={enAttente} tone="amber" />
+
+          <TopDayStat title="Confirmés" value={confirmes} tone="green" />
+
+          <TopDayStat title="Terminés / Annulés" value={`${termines} / ${annules}`} tone="slate" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TopDayStat({
+  title,
+  value,
+  tone,
+}: {
+  title: string;
+  value: string | number;
+  tone: "gold" | "sky" | "emerald" | "amber" | "green" | "slate";
+}) {
+  const styles: Record<typeof tone, string> = {
+    gold: "border-amber-400/25 bg-amber-400/10 text-amber-700 dark:text-amber-300",
+    sky: "border-sky-400/25 bg-sky-400/10 text-sky-700 dark:text-sky-300",
+    emerald:
+      "border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300",
+    amber:
+      "border-yellow-400/25 bg-yellow-400/10 text-yellow-700 dark:text-yellow-300",
+    green:
+      "border-green-400/25 bg-green-400/10 text-green-700 dark:text-green-300",
+    slate:
+      "border-slate-300 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200",
+  };
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${styles[tone]}`}>
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">
+        {title}
+      </p>
+
+      <p className="mt-2 truncate text-xl font-black">{value}</p>
+    </div>
+  );
+}
+
 function StatsSection({ stats }: { stats: DashboardStats | null }) {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -658,7 +961,7 @@ function ServiceForm({
   onChange: (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => void;
   onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -924,7 +1227,7 @@ function CreneauForm({
   form: typeof initialCreneauForm;
   services: Service[];
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => void;
   onToggleService: (serviceId: number | string) => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -1140,19 +1443,53 @@ function CreneauxTable({
   onResetFilter: () => void;
   onDelete: (id: number) => void;
 }) {
-  const pagination = usePagination(creneaux, 10);
+  const creneauxTries = useMemo(() => {
+    return [...creneaux].sort((a, b) => {
+      const timeA = formatTimeOnly(a.heure_creneau);
+      const timeB = formatTimeOnly(b.heure_creneau);
+      return timeA.localeCompare(timeB);
+    });
+  }, [creneaux]);
+
+  const creneauxParHeure = useMemo(() => {
+    const grouped: Record<string, Creneau[]> = {};
+
+    creneauxTries.forEach((creneau) => {
+      const heure = formatTimeOnly(creneau.heure_creneau);
+      const hourKey =
+        heure && heure !== "-" ? `${heure.slice(0, 2)}:00` : "--:--";
+
+      if (!grouped[hourKey]) {
+        grouped[hourKey] = [];
+      }
+
+      grouped[hourKey].push(creneau);
+    });
+
+    return grouped;
+  }, [creneauxTries]);
+
+  const heuresDisponibles = useMemo(() => {
+    return Object.keys(creneauxParHeure).sort();
+  }, [creneauxParHeure]);
 
   return (
     <div className={cardClass}>
-      <div>
-        <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
-          📌 Créneaux disponibles du jour
-        </h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
+            📌 Créneaux disponibles
+          </h2>
 
-        <p className="mt-1 text-sm font-medium text-slate-500 dark:text-gray-400">
-          Le tableau affiche uniquement les créneaux disponibles selon la date
-          choisie.
-        </p>
+          <p className="mt-1 text-sm font-medium text-slate-500 dark:text-gray-400">
+            Affichage professionnel par heure pour mieux visualiser les
+            disponibilités.
+          </p>
+        </div>
+
+        <div className="w-fit rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-600 dark:text-emerald-300">
+          {creneaux.length} disponible(s)
+        </div>
       </div>
 
       <CreneauxFilters
@@ -1162,78 +1499,117 @@ function CreneauxTable({
         onReset={onResetFilter}
       />
 
-      <div className={tableWrapperClass}>
-        <table className={`${tableClass} min-w-[680px]`}>
-          <thead className={theadClass}>
-            <tr>
-              <th className={thClass}>Service</th>
-              <th className={thClass}>Date</th>
-              <th className={thClass}>Heure</th>
-              <th className={thClass}>Statut</th>
-              <th className={`${thClass} text-right`}>Actions</th>
-            </tr>
-          </thead>
+      {creneaux.length === 0 ? (
+        <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 py-14 text-center dark:border-white/15 dark:bg-white/[0.03]">
+          <CalendarDays
+            size={44}
+            className="mx-auto mb-4 text-slate-400 dark:text-gray-600"
+          />
 
-          <tbody className="divide-y divide-slate-200 dark:divide-white/20">
-            {pagination.paginatedItems.map((creneau) => (
-              <tr key={creneau.id} className={rowClass}>
-                <td className={tdWhite}>{creneau.service_nom || "—"}</td>
+          <p className="text-lg font-black text-slate-700 dark:text-white">
+            Aucun créneau disponible
+          </p>
 
-                <td className={tdLight}>
-                  {formatDateOnly(creneau.date_creneau)}
-                </td>
+          <p className="mt-2 text-sm font-medium text-slate-500 dark:text-gray-400">
+            Aucun créneau disponible pour la date {filter.date}.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 max-h-[650px] space-y-5 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
+          {heuresDisponibles.map((heure) => (
+            <div
+              key={heure}
+              className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-600 dark:text-amber-300">
+                    <Clock size={19} />
+                  </div>
 
-                <td className={tdLight}>
-                  {formatTimeOnly(creneau.heure_creneau)}
-                </td>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 dark:text-gray-400">
+                      Heure
+                    </p>
 
-                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-900 transition-colors duration-200 group-hover:text-slate-950 dark:!text-white dark:group-hover:!text-black sm:px-4 sm:py-4 sm:text-sm">
-                  <CreneauBadge statut={creneau.statut} />
-                </td>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                      {heure}
+                    </h3>
+                  </div>
+                </div>
 
-                <td className="whitespace-nowrap px-3 py-3 text-right sm:px-4 sm:py-4">
-                  <button
-                    onClick={() => onDelete(creneau.id)}
-                    disabled={creneau.statut === "reserve"}
-                    title={
-                      creneau.statut === "reserve"
-                        ? "Créneau réservé, suppression impossible"
-                        : "Supprimer ce créneau"
-                    }
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-400/30 bg-red-400/10 !text-red-500 transition hover:bg-red-500 hover:!text-white disabled:cursor-not-allowed disabled:opacity-30 group-hover:border-red-500/40 dark:!text-red-300"
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-700 dark:text-amber-300">
+                  {creneauxParHeure[heure].length} créneau(x)
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {creneauxParHeure[heure].map((creneau) => (
+                  <div
+                    key={creneau.id}
+                    className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-500/10 dark:border-white/10 dark:bg-[#111111]"
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]" />
 
-        {creneaux.length === 0 && (
-          <div className="py-12 text-center">
-            <CalendarDays
-              size={40}
-              className="mx-auto mb-3 text-slate-400 dark:text-gray-600"
-            />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">
+                            Disponible
+                          </span>
 
-            <p className="font-semibold text-slate-500 dark:text-gray-400">
-              Aucun créneau disponible pour cette date.
-            </p>
-          </div>
-        )}
-      </div>
+                          <span className="text-xs font-bold text-slate-400">
+                            #{creneau.id}
+                          </span>
+                        </div>
 
-      <PaginationControls
-        page={pagination.page}
-        pageSize={pagination.pageSize}
-        totalItems={pagination.totalItems}
-        totalPages={pagination.totalPages}
-        startIndex={pagination.startIndex}
-        endIndex={pagination.endIndex}
-        onPageChange={pagination.setPage}
-        onPageSizeChange={pagination.setPageSize}
-      />
+                        <p className="truncate text-base font-black text-slate-900 dark:text-white">
+                          {creneau.service_nom || "Service non défini"}
+                        </p>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                              Date
+                            </p>
+
+                            <p className="mt-1 text-xs font-black text-slate-700 dark:text-gray-200">
+                              {formatDateOnly(creneau.date_creneau)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-3 py-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                              Temps
+                            </p>
+
+                            <p className="mt-1 text-sm font-black text-amber-700 dark:text-amber-300">
+                              {formatTimeOnly(creneau.heure_creneau)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onDelete(creneau.id)}
+                        disabled={creneau.statut === "reserve"}
+                        title={
+                          creneau.statut === "reserve"
+                            ? "Créneau réservé, suppression impossible"
+                            : "Supprimer ce créneau"
+                        }
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-red-400/30 bg-red-400/10 text-red-500 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 dark:text-red-300"
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1251,7 +1627,7 @@ function RdvFilters({
   lastRefresh: string;
   total: number;
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => void;
   onApply: () => void;
   onReset: () => void;
@@ -1377,10 +1753,7 @@ function RdvTable({
                   <select
                     value={rdv.statut}
                     onChange={(e) =>
-                      onUpdateStatut(
-                        rdv.id,
-                        e.target.value as RendezvousStatut
-                      )
+                      onUpdateStatut(rdv.id, e.target.value as RendezvousStatut)
                     }
                     className="cursor-pointer rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-black text-slate-900 outline-none transition hover:border-[#F59E0B] dark:border-white/20 dark:bg-[#111111] dark:text-white"
                   >
@@ -1444,6 +1817,7 @@ export default function AdminDashboardPage() {
   const [creneaux, setCreneaux] = useState<Creneau[]>([]);
 
   const [alert, setAlert] = useState<AlertState>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmState>(null);
   const [loading, setLoading] = useState(true);
   const [lastRdvRefresh, setLastRdvRefresh] = useState("");
 
@@ -1462,8 +1836,80 @@ export default function AdminDashboardPage() {
     });
   }, [creneaux, creneauFilter.date]);
 
+
+  const daySummary = useMemo(() => {
+    const enAttente = rendezvous.filter(
+      (rdv) => rdv.statut === "en_attente",
+    ).length;
+
+    const confirmes = rendezvous.filter(
+      (rdv) => rdv.statut === "confirme",
+    ).length;
+
+    const termines = rendezvous.filter(
+      (rdv) => rdv.statut === "termine",
+    ).length;
+
+    const annules = rendezvous.filter(
+      (rdv) => rdv.statut === "annule",
+    ).length;
+
+    const recetteJour = rendezvous
+      .filter((rdv) => rdv.statut === "termine")
+      .reduce((total, rdv) => total + Number(rdv.prix || 0), 0);
+
+    return {
+      enAttente,
+      confirmes,
+      termines,
+      annules,
+      recetteJour,
+    };
+  }, [rendezvous]);
+
+  function openConfirm(data: Omit<NonNullable<ConfirmState>, "open">) {
+    setConfirmDialog({
+      open: true,
+      ...data,
+    });
+  }
+
   function showAlert(type: AlertType, message: string) {
-    setAlert({ type, message });
+    setAlert({
+      type,
+      message,
+    });
+
+    if (type === "error") {
+      console.error("🚨 Erreur affichée admin :", message);
+    }
+  }
+
+  function showCatchError(context: string, error: unknown) {
+    const message = getErrorMessage(error);
+
+    console.error(`❌ ${context}:`, error);
+
+    if (isNetworkError(error)) {
+      showAlert(
+        "error",
+        `${context} : impossible de contacter le serveur. Vérifiez que le backend est lancé et que NEXT_PUBLIC_API_URL est correct.`,
+      );
+      return;
+    }
+
+    showAlert("error", `${context} : ${message}`);
+  }
+
+  function showApiError(
+    context: string,
+    res: { message?: string; error?: string },
+  ) {
+    const message = getApiMessage(res);
+
+    console.error(`❌ ${context}:`, res);
+
+    showAlert("error", `${context} : ${message}`);
   }
 
   useEffect(() => {
@@ -1497,7 +1943,7 @@ export default function AdminDashboardPage() {
 
       try {
         const [statsRes, servicesRes, rdvRes, creneauxRes] =
-          await Promise.all([
+          await Promise.allSettled([
             dashboardService.getStats(),
             serviceService.getAll(),
             rendezvousService.getAll({
@@ -1507,32 +1953,55 @@ export default function AdminDashboardPage() {
             creneauService.getAllAdmin(),
           ]);
 
-        if (statsRes.success && statsRes.data) {
-          setStats(statsRes.data);
+        if (statsRes.status === "fulfilled") {
+          if (statsRes.value.success && statsRes.value.data) {
+            setStats(statsRes.value.data);
+          } else {
+            showApiError("Erreur statistiques", statsRes.value);
+          }
+        } else {
+          showCatchError("Erreur chargement statistiques", statsRes.reason);
         }
 
-        if (servicesRes.success && servicesRes.data) {
-          setServices(servicesRes.data);
+        if (servicesRes.status === "fulfilled") {
+          if (servicesRes.value.success && servicesRes.value.data) {
+            setServices(servicesRes.value.data);
+          } else {
+            showApiError("Erreur services", servicesRes.value);
+          }
+        } else {
+          showCatchError("Erreur chargement services", servicesRes.reason);
         }
 
-        if (rdvRes.success && rdvRes.data) {
-          setRendezvous(rdvRes.data);
-          setLastRdvRefresh(getCurrentTimeValue());
+        if (rdvRes.status === "fulfilled") {
+          if (rdvRes.value.success && rdvRes.value.data) {
+            setRendezvous(rdvRes.value.data);
+            setLastRdvRefresh(getCurrentTimeValue());
+          } else {
+            showApiError("Erreur rendez-vous", rdvRes.value);
+          }
+        } else {
+          showCatchError("Erreur chargement rendez-vous", rdvRes.reason);
         }
 
-        if (creneauxRes.success && creneauxRes.data) {
-          setCreneaux(creneauxRes.data);
+        if (creneauxRes.status === "fulfilled") {
+          if (creneauxRes.value.success && creneauxRes.value.data) {
+            setCreneaux(creneauxRes.value.data);
+          } else {
+            showApiError("Erreur créneaux", creneauxRes.value);
+          }
+        } else {
+          showCatchError("Erreur chargement créneaux", creneauxRes.reason);
         }
       } catch (error) {
-        console.error("Erreur chargement dashboard:", error);
-        showAlert("error", "Erreur lors du chargement du dashboard");
+        showCatchError("Erreur générale chargement dashboard", error);
       } finally {
         if (showLoader) {
           setLoading(false);
         }
       }
     },
-    [checkAuth, rdvFilter.date, rdvFilter.statut]
+    [checkAuth, rdvFilter.date, rdvFilter.statut],
   );
 
   useEffect(() => {
@@ -1553,7 +2022,7 @@ export default function AdminDashboardPage() {
   function handleServiceChange(
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) {
     setServiceForm((prev) => ({
       ...prev,
@@ -1562,51 +2031,86 @@ export default function AdminDashboardPage() {
   }
 
   function handleServiceImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    try {
+      const file = e.target.files?.[0];
 
-    if (!file) return;
+      if (!file) {
+        showAlert("info", "Aucune image sélectionnée.");
+        return;
+      }
 
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+      ];
 
-    if (!allowedTypes.includes(file.type)) {
-      showAlert("warning", "Format invalide. Utilisez JPG, PNG ou WEBP");
-      return;
+      if (!allowedTypes.includes(file.type)) {
+        showAlert(
+          "warning",
+          `Format image invalide : ${file.type || "inconnu"}. Utilisez JPG, PNG ou WEBP.`,
+        );
+        e.target.value = "";
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showAlert(
+          "warning",
+          `Image trop grande. Taille maximum : 5 MB. Taille actuelle : ${(file.size / 1024 / 1024).toFixed(2)} MB.`,
+        );
+        e.target.value = "";
+        return;
+      }
+
+      if (serviceForm.imagePreview) {
+        URL.revokeObjectURL(serviceForm.imagePreview);
+      }
+
+      setServiceForm((prev) => ({
+        ...prev,
+        image: file,
+        imagePreview: URL.createObjectURL(file),
+      }));
+
+      showAlert("success", "Image sélectionnée avec succès.");
+    } catch (error) {
+      showCatchError("Erreur sélection image", error);
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showAlert("warning", "Image trop grande. Taille maximum : 5 MB");
-      return;
-    }
-
-    if (serviceForm.imagePreview) {
-      URL.revokeObjectURL(serviceForm.imagePreview);
-    }
-
-    setServiceForm((prev) => ({
-      ...prev,
-      image: file,
-      imagePreview: URL.createObjectURL(file),
-    }));
   }
 
   function editService(service: Service) {
-    if (serviceForm.imagePreview) {
-      URL.revokeObjectURL(serviceForm.imagePreview);
-    }
+    openConfirm({
+      variant: "edit",
+      title: "Modifier le service",
+      message: `Voulez-vous modifier le service "${service.nom}" ? Le formulaire sera rempli automatiquement en haut de la page.`,
+      confirmText: "Oui, modifier",
+      cancelText: "Annuler",
+      onConfirm: () => {
+        if (serviceForm.imagePreview) {
+          URL.revokeObjectURL(serviceForm.imagePreview);
+        }
 
-    setServiceForm({
-      id: String(service.id),
-      nom: service.nom || "",
-      duree: String(service.duree || ""),
-      prix: String(service.prix || ""),
-      image: null,
-      imagePreview: "",
-      oldImageUrl: service.image_url || service.image || "",
-      description: service.description || "",
-      statut: service.statut || "actif",
+        setServiceForm({
+          id: String(service.id),
+          nom: service.nom || "",
+          duree: String(service.duree || ""),
+          prix: String(service.prix || ""),
+          image: null,
+          imagePreview: "",
+          oldImageUrl: service.image_url || service.image || "",
+          description: service.description || "",
+          statut: service.statut || "actif",
+        });
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        showAlert(
+          "info",
+          `Mode modification activé pour le service : ${service.nom}.`,
+        );
+      },
     });
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetServiceForm() {
@@ -1620,63 +2124,86 @@ export default function AdminDashboardPage() {
   async function saveService(e: React.FormEvent) {
     e.preventDefault();
 
-    const duree = Number(serviceForm.duree);
-    const prix = Number(serviceForm.prix);
+    try {
+      const duree = Number(serviceForm.duree);
+      const prix = Number(serviceForm.prix);
 
-    if (!serviceForm.nom.trim()) {
-      showAlert("warning", "Le nom du service est obligatoire");
-      return;
-    }
+      if (!serviceForm.nom.trim()) {
+        showAlert("warning", "Le nom du service est obligatoire.");
+        return;
+      }
 
-    if (!duree || duree <= 0) {
-      showAlert("warning", "Durée invalide");
-      return;
-    }
+      if (!duree || duree <= 0) {
+        showAlert(
+          "warning",
+          "La durée du service doit être supérieure à 0 minute.",
+        );
+        return;
+      }
 
-    if (prix < 0) {
-      showAlert("warning", "Prix invalide");
-      return;
-    }
+      if (prix < 0 || Number.isNaN(prix)) {
+        showAlert("warning", "Le prix du service est invalide.");
+        return;
+      }
 
-    const body = {
-      nom: serviceForm.nom.trim(),
-      duree,
-      prix,
-      image: serviceForm.image,
-      description: serviceForm.description.trim(),
-      statut: serviceForm.statut,
-    };
+      const body = {
+        nom: serviceForm.nom.trim(),
+        duree,
+        prix,
+        image: serviceForm.image,
+        description: serviceForm.description.trim(),
+        statut: serviceForm.statut,
+      };
 
-    const res = serviceForm.id
-      ? await serviceService.update(serviceForm.id, body)
-      : await serviceService.create(body);
+      const res = serviceForm.id
+        ? await serviceService.update(serviceForm.id, body)
+        : await serviceService.create(body);
 
-    if (res.success) {
-      showAlert("success", "Service enregistré avec succès");
-      resetServiceForm();
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur lors de l'enregistrement");
+      if (res.success) {
+        showAlert(
+          "success",
+          serviceForm.id
+            ? "Service modifié avec succès."
+            : "Service ajouté avec succès.",
+        );
+
+        resetServiceForm();
+        await loadData(true);
+      } else {
+        showApiError("Erreur enregistrement service", res);
+      }
+    } catch (error) {
+      showCatchError("Erreur enregistrement service", error);
     }
   }
 
   async function deleteService(id: number) {
-    if (!confirm("Supprimer ce service ? Cette action est irréversible.")) {
-      return;
-    }
+    openConfirm({
+      variant: "delete",
+      title: "Supprimer le service",
+      message:
+        "Voulez-vous vraiment supprimer ce service ? Cette action est irréversible.",
+      confirmText: "Oui, supprimer",
+      cancelText: "Annuler",
+      onConfirm: async () => {
+        try {
+          const res = await serviceService.delete(id);
 
-    const res = await serviceService.delete(id);
-
-    if (res.success) {
-      showAlert("success", "Service supprimé avec succès");
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur suppression service");
-    }
+          if (res.success) {
+            showAlert("success", "Service supprimé avec succès.");
+            await loadData(true);
+          } else {
+            showApiError("Erreur suppression service", res);
+          }
+        } catch (error) {
+          showCatchError("Erreur suppression service", error);
+        }
+      },
+    });
   }
 
   function handleCreneauChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) {
     const { name, value } = e.target;
 
@@ -1708,65 +2235,81 @@ export default function AdminDashboardPage() {
   async function saveCreneau(e: React.FormEvent) {
     e.preventDefault();
 
-    const selectedServiceIds = Array.isArray(creneauForm.service_ids)
-      ? creneauForm.service_ids
-      : [];
+    try {
+      const selectedServiceIds = Array.isArray(creneauForm.service_ids)
+        ? creneauForm.service_ids
+        : [];
 
-    if (selectedServiceIds.length === 0) {
-      showAlert("warning", "Veuillez cocher au moins un service");
-      return;
-    }
+      if (selectedServiceIds.length === 0) {
+        showAlert("warning", "Veuillez cocher au moins un service.");
+        return;
+      }
 
-    if (!creneauForm.date_creneau) {
-      showAlert("warning", "Veuillez choisir une date");
-      return;
-    }
+      if (!creneauForm.date_creneau) {
+        showAlert("warning", "Veuillez choisir une date.");
+        return;
+      }
 
-    const heureFinale = `${creneauForm.heure}:${creneauForm.minute}`;
+      const heureFinale = `${creneauForm.heure}:${creneauForm.minute}`;
 
-    if (isPastCreneau(creneauForm.date_creneau, heureFinale)) {
-      showAlert(
-        "error",
-        `Impossible d'ajouter ce créneau : ${creneauForm.date_creneau} à ${heureFinale} est déjà passé`
-      );
-      return;
-    }
+      if (isPastCreneau(creneauForm.date_creneau, heureFinale)) {
+        showAlert(
+          "error",
+          `Impossible d'ajouter ce créneau : ${creneauForm.date_creneau} à ${heureFinale} est déjà passé.`,
+        );
+        return;
+      }
 
-    const res = await creneauService.create({
-      service_ids: selectedServiceIds,
-      date_creneau: creneauForm.date_creneau,
-      heure_creneau: heureFinale,
-      statut: "disponible",
-    });
-
-    if (res.success) {
-      showAlert(
-        "success",
-        `Créneau ${heureFinale} ajouté pour ${selectedServiceIds.length} service(s)`
-      );
-
-      setCreneauFilter({
-        date: creneauForm.date_creneau,
+      const res = await creneauService.create({
+        service_ids: selectedServiceIds,
+        date_creneau: creneauForm.date_creneau,
+        heure_creneau: heureFinale,
+        statut: "disponible",
       });
 
-      setCreneauForm(initialCreneauForm);
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur lors de l'ajout du créneau");
+      if (res.success) {
+        showAlert(
+          "success",
+          `Créneau ${heureFinale} ajouté pour ${selectedServiceIds.length} service(s).`,
+        );
+
+        setCreneauFilter({
+          date: creneauForm.date_creneau,
+        });
+
+        setCreneauForm(initialCreneauForm);
+        await loadData(true);
+      } else {
+        showApiError("Erreur ajout créneau", res);
+      }
+    } catch (error) {
+      showCatchError("Erreur ajout créneau", error);
     }
   }
 
   async function deleteCreneau(id: number) {
-    if (!confirm("Supprimer ce créneau ?")) return;
+    openConfirm({
+      variant: "delete",
+      title: "Supprimer le créneau",
+      message:
+        "Voulez-vous vraiment supprimer ce créneau disponible ? Il ne sera plus visible pour les clients.",
+      confirmText: "Oui, supprimer",
+      cancelText: "Annuler",
+      onConfirm: async () => {
+        try {
+          const res = await creneauService.delete(id);
 
-    const res = await creneauService.delete(id);
-
-    if (res.success) {
-      showAlert("success", "Créneau supprimé avec succès");
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur suppression créneau");
-    }
+          if (res.success) {
+            showAlert("success", "Créneau supprimé avec succès.");
+            await loadData(true);
+          } else {
+            showApiError("Erreur suppression créneau", res);
+          }
+        } catch (error) {
+          showCatchError("Erreur suppression créneau", error);
+        }
+      },
+    });
   }
 
   function handleCreneauFilterChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1783,38 +2326,63 @@ export default function AdminDashboardPage() {
 
     showAlert(
       "info",
-      "Filtre réinitialisé sur les créneaux disponibles du jour"
+      "Filtre réinitialisé sur les créneaux disponibles du jour",
     );
   }
 
   async function updateRdvStatut(id: number, statut: RendezvousStatut) {
-    const res = await rendezvousService.updateStatut(id, { statut });
+    try {
+      const res = await rendezvousService.updateStatut(id, { statut });
 
-    if (res.success) {
-      showAlert("success", "Statut du rendez-vous mis à jour");
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur mise à jour statut");
+      if (res.success) {
+        const labels: Record<RendezvousStatut, string> = {
+          en_attente: "en attente",
+          confirme: "confirmé",
+          termine: "terminé",
+          annule: "annulé",
+        };
+
+        showAlert(
+          "success",
+          `Statut du rendez-vous mis à jour : ${labels[statut]}.`,
+        );
+
+        await loadData(true);
+      } else {
+        showApiError("Erreur mise à jour statut RDV", res);
+      }
+    } catch (error) {
+      showCatchError("Erreur mise à jour statut RDV", error);
     }
   }
 
   async function deleteRdv(id: number) {
-    if (!confirm("Supprimer ce rendez-vous ? Cette action est irréversible.")) {
-      return;
-    }
+    openConfirm({
+      variant: "delete",
+      title: "Supprimer le rendez-vous",
+      message:
+        "Voulez-vous vraiment supprimer ce rendez-vous ? Cette action est irréversible.",
+      confirmText: "Oui, supprimer",
+      cancelText: "Annuler",
+      onConfirm: async () => {
+        try {
+          const res = await rendezvousService.delete(id);
 
-    const res = await rendezvousService.delete(id);
-
-    if (res.success) {
-      showAlert("success", "Rendez-vous supprimé avec succès");
-      loadData(true);
-    } else {
-      showAlert("error", res.message || "Erreur suppression RDV");
-    }
+          if (res.success) {
+            showAlert("success", "Rendez-vous supprimé avec succès.");
+            await loadData(true);
+          } else {
+            showApiError("Erreur suppression rendez-vous", res);
+          }
+        } catch (error) {
+          showCatchError("Erreur suppression rendez-vous", error);
+        }
+      },
+    });
   }
 
   function handleFilterChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) {
     setRdvFilter((prev) => ({
       ...prev,
@@ -1823,22 +2391,60 @@ export default function AdminDashboardPage() {
   }
 
   async function applyFilters() {
-    await loadData(true);
-    showAlert("info", "Filtre appliqué avec succès");
+    try {
+      await loadData(true);
+      showAlert("info", "Filtre appliqué avec succès.");
+    } catch (error) {
+      showCatchError("Erreur application filtre", error);
+    }
   }
 
   function resetFilters() {
+    const today = getTodayDateValue();
+
     setRdvFilter({
       statut: "",
-      date: getTodayDateValue(),
+      date: today,
     });
 
-    showAlert("info", "Rendez-vous du jour affichés");
+    setCreneauFilter({
+      date: today,
+    });
+
+    showAlert("info", "Rendez-vous et créneaux du jour affichés.");
   }
 
   async function refreshRdvNow() {
-    await loadData(false);
-    showAlert("success", "Rendez-vous actualisés");
+    try {
+      await loadData(false);
+      showAlert("success", "Rendez-vous actualisés avec succès.");
+    } catch (error) {
+      showCatchError("Erreur actualisation rendez-vous", error);
+    }
+  }
+
+
+  function changeDashboardDate(date: string) {
+    const cleanDate = date || getTodayDateValue();
+
+    setRdvFilter((prev) => ({
+      ...prev,
+      date: cleanDate,
+    }));
+
+    setCreneauFilter({
+      date: cleanDate,
+    });
+
+    showAlert("info", `Filtre du jour appliqué : ${cleanDate}`);
+  }
+
+  function showTodayDashboard() {
+    changeDashboardDate(getTodayDateValue());
+  }
+
+  function showTomorrowDashboard() {
+    changeDashboardDate(getDateByOffset(1));
   }
 
   return (
@@ -1892,7 +2498,12 @@ export default function AdminDashboardPage() {
         }
       `}</style>
 
-      <DashboardHeader onLogout={logout} />
+      <AdminHeader />
+
+      <ConfirmDialog
+        confirm={confirmDialog}
+        onClose={() => setConfirmDialog(null)}
+      />
 
       <div className="pb-20">
         <PrettyAlert
@@ -1901,47 +2512,72 @@ export default function AdminDashboardPage() {
           onClose={() => setAlert(null)}
         />
 
+        <TopDayFilter
+          date={rdvFilter.date}
+          totalRdv={rendezvous.length}
+          totalCreneaux={creneauxDisponiblesFiltres.length}
+          recetteJour={daySummary.recetteJour}
+          enAttente={daySummary.enAttente}
+          confirmes={daySummary.confirmes}
+          termines={daySummary.termines}
+          annules={daySummary.annules}
+          onDateChange={changeDashboardDate}
+          onToday={showTodayDashboard}
+          onTomorrow={showTomorrowDashboard}
+          onRefresh={refreshRdvNow}
+        />
+
         <StatsSection stats={stats} />
 
         <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-          <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
-            <ServiceForm
-              form={serviceForm}
-              onChange={handleServiceChange}
-              onImageChange={handleServiceImageChange}
-              onSubmit={saveService}
-              onReset={resetServiceForm}
-            />
+          <div className="mt-6 grid items-start gap-6 xl:grid-cols-[420px_1fr]">
+            <div className="h-fit self-start">
+              <ServiceForm
+                form={serviceForm}
+                onChange={handleServiceChange}
+                onImageChange={handleServiceImageChange}
+                onSubmit={saveService}
+                onReset={resetServiceForm}
+              />
+            </div>
 
-            <ServicesTable
-              services={services}
-              onEdit={editService}
-              onDelete={deleteService}
-            />
+            <div className="min-w-0">
+              <ServicesTable
+                services={services}
+                onEdit={editService}
+                onDelete={deleteService}
+              />
+            </div>
           </div>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
-            <CreneauForm
-              form={creneauForm}
-              services={services}
-              onChange={handleCreneauChange}
-              onToggleService={toggleCreneauService}
-              onSubmit={saveCreneau}
-            />
+          <div className="mt-6 grid items-start gap-6 xl:grid-cols-[420px_1fr]">
+            <div className="h-fit self-start">
+              <CreneauForm
+                form={creneauForm}
+                services={services}
+                onChange={handleCreneauChange}
+                onToggleService={toggleCreneauService}
+                onSubmit={saveCreneau}
+              />
+            </div>
 
-            <CreneauxTable
-              creneaux={creneauxDisponiblesFiltres}
-              filter={creneauFilter}
-              onFilterChange={handleCreneauFilterChange}
-              onResetFilter={resetCreneauFilter}
-              onDelete={deleteCreneau}
-            />
+            <div className="min-w-0">
+              <CreneauxTable
+                creneaux={creneauxDisponiblesFiltres}
+                filter={creneauFilter}
+                onFilterChange={handleCreneauFilterChange}
+                onResetFilter={resetCreneauFilter}
+                onDelete={deleteCreneau}
+              />
+            </div>
           </div>
 
           <div className="mt-6 rounded-[26px] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 dark:border-white/10 dark:bg-[#0D0D0D] dark:shadow-black/30 sm:rounded-3xl sm:p-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <h2 className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}>
+                <h2
+                  className={`text-lg font-serif font-bold sm:text-xl ${goldText}`}
+                >
                   👥 Rendez-vous clients du jour
                 </h2>
 

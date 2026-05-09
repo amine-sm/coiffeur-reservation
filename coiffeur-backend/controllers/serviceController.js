@@ -105,6 +105,20 @@ const createService = async (req, res) => {
             });
         }
 
+        if (Number(duree) <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "La durée du service doit être supérieure à 0 minute"
+            });
+        }
+
+        if (Number(prix) < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Le prix du service est invalide"
+            });
+        }
+
         let image = null;
 
         if (req.file) {
@@ -171,6 +185,20 @@ const updateService = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Nom, durée et prix sont obligatoires"
+            });
+        }
+
+        if (Number(duree) <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "La durée du service doit être supérieure à 0 minute"
+            });
+        }
+
+        if (Number(prix) < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Le prix du service est invalide"
             });
         }
 
