@@ -8,7 +8,7 @@ import {
   type ChangeEventHandler,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import { serviceService } from "@/lib/serviceService";
@@ -128,6 +128,10 @@ function SuccessModal({
               </span>
             </p>
 
+            <p className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
+              Redirection automatique vers l’accueil dans 10 secondes...
+            </p>
+
             {rdvId && (
               <div className="mt-7 rounded-3xl border border-sky-500/20 bg-sky-500/10 p-5 text-left">
                 <p className="text-sm font-bold text-slate-950 dark:text-white">
@@ -209,6 +213,7 @@ function SuccessModal({
 
 function ReservationContent() {
   const params = useSearchParams();
+  const router = useRouter();
   const selectedService = params.get("service");
 
   const [services, setServices] = useState<Service[]>([]);
@@ -413,6 +418,10 @@ function ReservationContent() {
         setLastRdvId(res.data?.id || null);
         setShowSuccess(true);
 
+        setTimeout(() => {
+          router.push("/");
+        }, 10000);
+
         const oldServiceId = form.service_id;
         const oldDate = form.date_rdv;
 
@@ -601,7 +610,10 @@ function ReservationContent() {
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-10">
               <div>
-                <SectionTitle icon={<UserRound size={16} />} title="Coordonnées" />
+                <SectionTitle
+                  icon={<UserRound size={16} />}
+                  title="Coordonnées"
+                />
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <InputField
