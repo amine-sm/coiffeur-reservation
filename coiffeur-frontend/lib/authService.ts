@@ -35,6 +35,6 @@ export const authService = {
 
   isAuthenticated() {
     if (typeof window === "undefined") return false;
-    return !!localStorage.getItem("admin_token");
+    return Boolean(localStorage.getItem("admin_token"));
   },
 };

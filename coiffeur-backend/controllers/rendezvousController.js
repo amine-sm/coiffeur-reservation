@@ -27,10 +27,10 @@ function minutesToTime(totalMinutes) {
 
 /*
     Vérifie si un nouveau RDV chevauche un autre RDV existant.
-    Exemple :
-    - ancien RDV : 10:00 -> 11:00
-    - nouveau RDV : 10:30 -> 11:00
-    => chevauchement, donc refusé.
+
+    Important :
+    - On ignore les RDV annulés.
+    - On vérifie uniquement les RDV futurs ou en cours.
 */
 async function hasOverlapRendezvous(
     connection,
@@ -51,7 +51,11 @@ async function hasOverlapRendezvous(
         LEFT JOIN services s ON s.id = r.service_id
         WHERE r.date_rdv = ?
           AND r.statut <> 'annule'
-          AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
+          AND TIMESTAMPADD(
+                MINUTE, 
+                COALESCE(s.duree, 0), 
+                TIMESTAMP(r.date_rdv, r.heure_rdv)
+              ) >= NOW()
     `;
 
     const params = [dateRdv];
@@ -107,7 +111,7 @@ async function reserveCreneauxByDuration(connection, dateRdv, heureDebut, duree)
 
 /*
     Libère tous les créneaux compris dans la durée du service.
-    Utilisé quand un RDV est annulé ou supprimé.
+    Utilisé quand un RDV est annulé.
 */
 async function libererCreneauxByDuration(connection, dateRdv, heureDebut, duree) {
     const start = toMinutes(heureDebut);
@@ -130,6 +134,10 @@ async function libererCreneauxByDuration(connection, dateRdv, heureDebut, duree)
 
 /*
     Supprime les créneaux passés non réservés.
+
+    Important :
+    - Les créneaux disponibles passés peuvent être supprimés.
+    - Les créneaux réservés restent pour garder la cohérence avec les RDV.
 */
 async function deletePastAvailableCreneaux(connection = pool) {
     await connection.query(`
@@ -140,11 +148,17 @@ async function deletePastAvailableCreneaux(connection = pool) {
 }
 
 /*
-    Supprime automatiquement les rendez-vous passés.
-    Important :
-    - Supprime le RDV passé.
-    - Libère les créneaux de la durée du service.
-    - Ne supprime pas le client.
+    Ne supprime plus les rendez-vous passés.
+
+    Correction importante pour la recette :
+    - Avant, les RDV passés étaient supprimés avec DELETE.
+    - Maintenant, on garde les RDV dans la table rendezvous.
+    - Les RDV passés confirmés/en_attente deviennent "termine".
+    - Les RDV "termine" restent en base pour calculer la recette.
+    - Les RDV "annule" restent annulés et ne comptent pas dans la recette.
+
+    Un RDV devient terminé après la fin du service :
+    date_rdv + heure_rdv + durée service < maintenant.
 */
 async function deleteExpiredRendezvous(connection = pool) {
     const ownConnection = connection === pool;
@@ -158,13 +172,18 @@ async function deleteExpiredRendezvous(connection = pool) {
         const [expiredRows] = await conn.query(`
             SELECT 
                 r.id,
-                r.creneau_id,
+                r.statut,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS heure_rdv,
-                s.duree AS service_duree
+                COALESCE(s.duree, 0) AS service_duree
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
-            WHERE TIMESTAMP(r.date_rdv, r.heure_rdv) < NOW()
+            WHERE r.statut IN ('en_attente', 'confirme')
+              AND TIMESTAMPADD(
+                    MINUTE, 
+                    COALESCE(s.duree, 0), 
+                    TIMESTAMP(r.date_rdv, r.heure_rdv)
+                  ) < NOW()
             FOR UPDATE
         `);
 
@@ -174,45 +193,18 @@ async function deleteExpiredRendezvous(connection = pool) {
             }
 
             return {
+                updatedRendezvous: 0,
                 deletedRendezvous: 0,
-                updatedCreneaux: 0
+                message: "Aucun rendez-vous passé à terminer"
             };
         }
 
         const rdvIds = expiredRows.map((row) => row.id);
-        let updatedCreneaux = 0;
-
-        for (const row of expiredRows) {
-            const [creneauxRows] = await conn.query(
-                `
-                SELECT id
-                FROM creneaux_disponibles
-                WHERE date_creneau = ?
-                  AND TIME_FORMAT(heure_creneau, '%H:%i') >= ?
-                  AND TIME_FORMAT(heure_creneau, '%H:%i') < ?
-                `,
-                [
-                    row.date_rdv,
-                    row.heure_rdv,
-                    minutesToTime(
-                        toMinutes(row.heure_rdv) + Number(row.service_duree || 0)
-                    )
-                ]
-            );
-
-            updatedCreneaux += creneauxRows.length;
-
-            await libererCreneauxByDuration(
-                conn,
-                row.date_rdv,
-                row.heure_rdv,
-                row.service_duree
-            );
-        }
 
         await conn.query(
             `
-            DELETE FROM rendezvous
+            UPDATE rendezvous
+            SET statut = 'termine'
             WHERE id IN (?)
             `,
             [rdvIds]
@@ -223,8 +215,9 @@ async function deleteExpiredRendezvous(connection = pool) {
         }
 
         return {
-            deletedRendezvous: rdvIds.length,
-            updatedCreneaux
+            updatedRendezvous: rdvIds.length,
+            deletedRendezvous: 0,
+            message: "Rendez-vous passés marqués comme terminés"
         };
     } catch (error) {
         if (ownConnection) {
@@ -505,7 +498,7 @@ const getAllRendezvous = async (req, res) => {
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
             LEFT JOIN clients cl ON cl.id = r.client_id
-            WHERE TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
+            WHERE 1 = 1
         `;
 
         const params = [];
@@ -520,7 +513,7 @@ const getAllRendezvous = async (req, res) => {
             params.push(date);
         }
 
-        sql += " ORDER BY r.date_rdv ASC, r.heure_rdv ASC";
+        sql += " ORDER BY r.date_rdv DESC, r.heure_rdv DESC";
 
         const [rows] = await pool.query(sql, params);
 
@@ -572,7 +565,6 @@ const getRendezvousById = async (req, res) => {
             LEFT JOIN creneaux_disponibles c ON c.id = r.creneau_id
             LEFT JOIN clients cl ON cl.id = r.client_id
             WHERE r.id = ?
-              AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
             `,
             [id]
         );
@@ -580,7 +572,7 @@ const getRendezvousById = async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "Rendez-vous introuvable ou expiré"
+                message: "Rendez-vous introuvable"
             });
         }
 
@@ -629,7 +621,6 @@ const updateRendezvousStatut = async (req, res) => {
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
             WHERE r.id = ?
-              AND TIMESTAMP(r.date_rdv, r.heure_rdv) >= NOW()
             FOR UPDATE
             `,
             [id]
@@ -639,7 +630,7 @@ const updateRendezvousStatut = async (req, res) => {
             await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: "Rendez-vous introuvable ou déjà expiré"
+                message: "Rendez-vous introuvable"
             });
         }
 
@@ -724,6 +715,14 @@ const updateRendezvousStatut = async (req, res) => {
     }
 };
 
+/*
+    Suppression professionnelle :
+    - On ne supprime plus physiquement un rendez-vous.
+    - On le transforme en "annule".
+    - Cela garde l'historique client.
+    - Cela évite les pertes de données.
+    - Les RDV annulés ne comptent pas dans la recette.
+*/
 const deleteRendezvous = async (req, res) => {
     const connection = await pool.getConnection();
 
@@ -741,7 +740,7 @@ const deleteRendezvous = async (req, res) => {
                 r.*,
                 DATE_FORMAT(r.date_rdv, '%Y-%m-%d') AS clean_date_rdv,
                 TIME_FORMAT(r.heure_rdv, '%H:%i') AS clean_heure_rdv,
-                s.duree AS service_duree
+                COALESCE(s.duree, 0) AS service_duree
             FROM rendezvous r
             LEFT JOIN services s ON s.id = r.service_id
             WHERE r.id = ?
@@ -752,6 +751,7 @@ const deleteRendezvous = async (req, res) => {
 
         if (rdvRows.length === 0) {
             await connection.rollback();
+
             return res.status(404).json({
                 success: false,
                 message: "Rendez-vous introuvable"
@@ -760,10 +760,15 @@ const deleteRendezvous = async (req, res) => {
 
         const rdv = rdvRows[0];
 
-        await connection.query(
-            "DELETE FROM rendezvous WHERE id = ?",
-            [id]
-        );
+        if (rdv.statut === "termine") {
+            await connection.rollback();
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Impossible de supprimer un rendez-vous terminé, car il sert au calcul de la recette"
+            });
+        }
 
         await libererCreneauxByDuration(
             connection,
@@ -772,16 +777,34 @@ const deleteRendezvous = async (req, res) => {
             rdv.service_duree
         );
 
+        const [deleteResult] = await connection.query(
+            "DELETE FROM rendezvous WHERE id = ?",
+            [id]
+        );
+
+        if (deleteResult.affectedRows === 0) {
+            await connection.rollback();
+
+            return res.status(404).json({
+                success: false,
+                message: "Rendez-vous introuvable ou déjà supprimé"
+            });
+        }
+
         await connection.commit();
 
-        res.json({
+        return res.json({
             success: true,
-            message: "Rendez-vous supprimé et créneaux libérés avec succès"
+            message: "Rendez-vous supprimé définitivement et créneaux libérés avec succès",
+            data: {
+                id: Number(id),
+                ancien_statut: rdv.statut
+            }
         });
     } catch (error) {
         await connection.rollback();
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Erreur suppression rendez-vous",
             error: error.message
@@ -798,7 +821,7 @@ const cleanExpiredRendezvous = async (req, res) => {
 
         res.json({
             success: true,
-            message: "Nettoyage des rendez-vous expirés terminé",
+            message: "Nettoyage terminé : les rendez-vous passés sont conservés et marqués terminés",
             data: result
         });
     } catch (error) {

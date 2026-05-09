@@ -64,10 +64,11 @@ export default function AnalyticsPage() {
     return (
       <main className="min-h-screen bg-slate-50 text-slate-950 dark:bg-black dark:text-white">
         <AdminHeader />
+
         <div className="flex min-h-[60vh] items-center justify-center p-6">
           <div className="text-center">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-500" />
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="mt-4 text-sm text-slate-500 dark:text-gray-400">
               Analyse intelligente en cours...
             </p>
           </div>
@@ -80,9 +81,10 @@ export default function AnalyticsPage() {
     return (
       <main className="min-h-screen bg-slate-50 text-slate-950 dark:bg-black dark:text-white">
         <AdminHeader />
+
         <div className="mx-auto max-w-7xl p-4 md:p-8">
           <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-red-600">
-          {message || "Aucune donnée disponible."}
+            {message || "Aucune donnée disponible."}
           </div>
         </div>
       </main>
@@ -92,10 +94,11 @@ export default function AnalyticsPage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950 dark:bg-black dark:text-white">
       <AdminHeader />
+
       <div className="mx-auto max-w-7xl p-4 md:p-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-600">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
               <Sparkles size={16} />
               Smart Analytics
             </div>
@@ -126,30 +129,10 @@ export default function AnalyticsPage() {
         )}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            icon={<Wallet />}
-            label="Recette aujourd’hui"
-            value={formatMoney(data.revenue.today)}
-          />
-
-          <StatCard
-            icon={<TrendingUp />}
-            label="Recette du mois"
-            value={formatMoney(data.revenue.month)}
-            subValue={`${formatPercent(data.revenue.month_growth_percent)} vs mois précédent`}
-          />
-
-          <StatCard
-            icon={<CalendarDays />}
-            label="Total rendez-vous"
-            value={String(data.rendezvous.total)}
-          />
-
-          <StatCard
-            icon={<AlertTriangle />}
-            label="Taux d’annulation"
-            value={`${data.rendezvous.cancellation_rate}%`}
-          />
+          <StatCard icon={<Wallet />} label="Recette aujourd’hui" value={formatMoney(data.revenue.today)} />
+          <StatCard icon={<TrendingUp />} label="Recette du mois" value={formatMoney(data.revenue.month)} subValue={`${formatPercent(data.revenue.month_growth_percent)} vs mois précédent`} />
+          <StatCard icon={<CalendarDays />} label="Total rendez-vous" value={String(data.rendezvous.total)} />
+          <StatCard icon={<AlertTriangle />} label="Taux d’annulation" value={`${data.rendezvous.cancellation_rate}%`} />
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -163,37 +146,16 @@ export default function AnalyticsPage() {
           </BigCard>
 
           <BigCard title="Services principaux" icon={<Scissors />}>
-            <InfoLine
-              label="Plus demandé"
-              value={data.services.top_requested_service?.nom || "-"}
-            />
-            <InfoLine
-              label="Plus rentable"
-              value={data.services.top_revenue_service?.nom || "-"}
-            />
-            <InfoLine
-              label="Plus annulé"
-              value={data.services.top_cancelled_service?.nom || "-"}
-            />
+            <InfoLine label="Plus demandé" value={data.services.top_requested_service?.nom || "-"} />
+            <InfoLine label="Plus rentable" value={data.services.top_revenue_service?.nom || "-"} />
+            <InfoLine label="Plus annulé" value={data.services.top_cancelled_service?.nom || "-"} />
           </BigCard>
 
           <BigCard title="Créneaux et planning" icon={<Clock />}>
-            <InfoLine
-              label="Jour fort"
-              value={data.days.best_day?.day_name || "-"}
-            />
-            <InfoLine
-              label="Jour faible"
-              value={data.days.weak_day?.day_name || "-"}
-            />
-            <InfoLine
-              label="Heure forte"
-              value={data.hours.peak_hour?.hour || "-"}
-            />
-            <InfoLine
-              label="Heure faible"
-              value={data.hours.weak_hour?.hour || "-"}
-            />
+            <InfoLine label="Jour fort" value={data.days.best_day?.day_name || "-"} />
+            <InfoLine label="Jour faible" value={data.days.weak_day?.day_name || "-"} />
+            <InfoLine label="Heure forte" value={data.hours.peak_hour?.hour || "-"} />
+            <InfoLine label="Heure faible" value={data.hours.weak_hour?.hour || "-"} />
           </BigCard>
         </section>
 
@@ -263,16 +225,11 @@ function StatCard({
       <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
         {icon}
       </div>
-
       <p className="text-xs font-black uppercase tracking-widest text-slate-500">
         {label}
       </p>
-
       <p className="mt-2 text-3xl font-black">{value}</p>
-
-      {subValue && (
-        <p className="mt-2 text-xs font-bold text-emerald-500">{subValue}</p>
-      )}
+      {subValue && <p className="mt-2 text-xs font-bold text-emerald-500">{subValue}</p>}
     </div>
   );
 }
@@ -292,10 +249,8 @@ function BigCard({
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
           {icon}
         </div>
-
         <h2 className="text-lg font-black">{title}</h2>
       </div>
-
       {children}
     </div>
   );
@@ -336,7 +291,6 @@ function RankLine({
         </div>
         <p className="font-bold">{label || "-"}</p>
       </div>
-
       <p className="text-sm font-bold text-slate-500">{value}</p>
     </div>
   );
