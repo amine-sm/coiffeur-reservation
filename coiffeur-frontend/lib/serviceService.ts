@@ -20,7 +20,11 @@ function getAuthHeaders() {
   };
 }
 
-function buildServiceFormData(data: CreateServiceDto | UpdateServiceDto) {
+function buildServiceFormData(data: CreateServiceDto | UpdateServiceDto | FormData) {
+  if (data instanceof FormData) {
+    return data;
+  }
+
   const formData = new FormData();
 
   if (data.nom !== undefined) {
@@ -50,6 +54,22 @@ function buildServiceFormData(data: CreateServiceDto | UpdateServiceDto) {
   return formData;
 }
 
+async function handleJsonResponse<T>(res: Response): Promise<ApiResponse<T>> {
+  let json: ApiResponse<T>;
+
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Réponse serveur invalide.");
+  }
+
+  if (!res.ok) {
+    throw new Error(json.message || json.error || "Erreur serveur.");
+  }
+
+  return json;
+}
+
 export const serviceService = {
   async getAll(): Promise<ApiResponse<Service[]>> {
     const res = await fetch(`${API_URL}/services`, {
@@ -57,7 +77,7 @@ export const serviceService = {
       cache: "no-store",
     });
 
-    return res.json();
+    return handleJsonResponse<Service[]>(res);
   },
 
   async getById(id: number | string): Promise<ApiResponse<Service>> {
@@ -66,10 +86,12 @@ export const serviceService = {
       cache: "no-store",
     });
 
-    return res.json();
+    return handleJsonResponse<Service>(res);
   },
 
-  async create(data: CreateServiceDto): Promise<ApiResponse<Service>> {
+  async create(
+    data: CreateServiceDto | FormData,
+  ): Promise<ApiResponse<Service>> {
     const formData = buildServiceFormData(data);
 
     const res = await fetch(`${API_URL}/services`, {
@@ -78,12 +100,12 @@ export const serviceService = {
       body: formData,
     });
 
-    return res.json();
+    return handleJsonResponse<Service>(res);
   },
 
   async update(
     id: number | string,
-    data: UpdateServiceDto
+    data: UpdateServiceDto | FormData,
   ): Promise<ApiResponse<Service>> {
     const formData = buildServiceFormData(data);
 
@@ -93,17 +115,15 @@ export const serviceService = {
       body: formData,
     });
 
-    return res.json();
+    return handleJsonResponse<Service>(res);
   },
 
   async delete(id: number | string): Promise<ApiResponse<null>> {
     const res = await fetch(`${API_URL}/services/${id}`, {
       method: "DELETE",
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: getAuthHeaders(),
     });
 
-    return res.json();
+    return handleJsonResponse<null>(res);
   },
 };
