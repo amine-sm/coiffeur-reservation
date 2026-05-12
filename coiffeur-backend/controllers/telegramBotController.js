@@ -7,8 +7,7 @@ const {
 
 const {
     notifyStatusChange,
-    formatRdvText,
-    escapeHtml
+    formatRdvText
 } = require("../services/notificationService");
 
 let botInstance = null;
@@ -23,6 +22,101 @@ function getActionLabel(statut) {
     };
 
     return labels[statut] || statut;
+}
+
+function botFooter() {
+    return `
+━━━━━━━━━━━━━━━━━━━━
+PRESTIGE Salon • Message automatique
+`.trim();
+}
+
+function formatClientLinkedMessage() {
+    return `
+💈 Votre rendez-vous est bien connecté
+
+Bonjour 👋
+
+Votre Telegram est maintenant lié à votre rendez-vous.
+
+Vous recevrez ici les notifications importantes :
+
+✅ Confirmation du rendez-vous
+❌ Annulation du rendez-vous
+⏳ Changement de statut
+✔️ Fin du rendez-vous
+
+Merci pour votre confiance.
+
+${botFooter()}
+`.trim();
+}
+
+function formatSalonStartMessage(chatId) {
+    return `
+💈 PRESTIGE Salon Bot
+
+━━━━━━━━━━━━━━━━━━━━
+
+Le bot Telegram est actif avec succès.
+
+Chat ID du salon :
+
+${chatId}
+
+Copiez cette valeur dans votre fichier .env :
+
+TELEGRAM_BARBER_CHAT_ID=${chatId}
+
+Vous recevrez ici les nouveaux rendez-vous avec les boutons :
+
+✅ Confirmer
+❌ Annuler
+✔️ Terminer
+
+${botFooter()}
+`.trim();
+}
+
+function formatInvalidLinkMessage() {
+    return `
+❌ Lien invalide
+
+Le lien de rendez-vous est invalide ou expiré.
+
+Veuillez demander un nouveau lien au salon.
+
+${botFooter()}
+`.trim();
+}
+
+function formatBotErrorMessage() {
+    return `
+❌ Erreur
+
+Une erreur est survenue pendant la liaison Telegram.
+
+Veuillez réessayer plus tard.
+
+${botFooter()}
+`.trim();
+}
+
+function formatSalonActionDoneMessage(rdvId, statut, rdv) {
+    return `
+✅ Action enregistrée avec succès
+
+━━━━━━━━━━━━━━━━━━━━
+
+Rendez-vous : #${rdvId}
+Nouveau statut : ${getActionLabel(statut)}
+
+📋 Détails du rendez-vous
+
+${formatRdvText(rdv)}
+
+${botFooter()}
+`.trim();
 }
 
 function getBot() {
@@ -64,6 +158,7 @@ async function linkClientTelegramToRdv(chatId, rdvId) {
 
         if (rows.length === 0) {
             await connection.rollback();
+
             return {
                 success: false,
                 message: "Rendez-vous introuvable."
@@ -131,7 +226,7 @@ function initTelegramBot() {
                 if (!rdvId) {
                     await bot.sendMessage(
                         chatId,
-                        "❌ Lien de rendez-vous invalide."
+                        formatInvalidLinkMessage()
                     );
                     return;
                 }
@@ -141,14 +236,14 @@ function initTelegramBot() {
                 if (!result.success) {
                     await bot.sendMessage(
                         chatId,
-                        "❌ Rendez-vous introuvable ou expiré."
+                        formatInvalidLinkMessage()
                     );
                     return;
                 }
 
                 await bot.sendMessage(
                     chatId,
-                    `✅ Votre Telegram est bien lié au RDV #${rdvId}.\n\nVous recevrez ici la confirmation ou l'annulation du coiffeur.`
+                    formatClientLinkedMessage()
                 );
 
                 return;
@@ -156,21 +251,27 @@ function initTelegramBot() {
 
             await bot.sendMessage(
                 chatId,
-                `✅ Bot PRESTIGE actif.\n\nVotre chat_id : ${chatId}\n\nSi vous êtes coiffeur, mettez cette valeur dans TELEGRAM_BARBER_CHAT_ID.`
+                formatSalonStartMessage(chatId)
             );
         } catch (error) {
             console.error("❌ Erreur /start Telegram :", error);
 
             await bot.sendMessage(
                 chatId,
-                "❌ Erreur lors de la liaison Telegram avec le rendez-vous."
+                formatBotErrorMessage()
             );
         }
     });
 
     bot.on("callback_query", async (query) => {
-        const chatId = query.message?.chat?.id;
-        const messageId = query.message?.message_id;
+        const chatId = query.message && query.message.chat
+            ? query.message.chat.id
+            : null;
+
+        const messageId = query.message
+            ? query.message.message_id
+            : null;
+
         const data = query.data || "";
 
         try {
@@ -216,11 +317,10 @@ function initTelegramBot() {
 
             if (chatId && messageId) {
                 await bot.editMessageText(
-                    `✅ <b>Action effectuée</b>\n\nRDV #${rdvId} ${getActionLabel(statut)}.\n\n<pre>${escapeHtml(formatRdvText(updatedRdv))}</pre>`,
+                    formatSalonActionDoneMessage(rdvId, statut, updatedRdv),
                     {
                         chat_id: chatId,
-                        message_id: messageId,
-                        parse_mode: "HTML"
+                        message_id: messageId
                     }
                 );
             }
