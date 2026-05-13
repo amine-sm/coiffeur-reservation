@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   AlertTriangle,
   BarChart3,
   CalendarDays,
   Clock,
   Crown,
+  Filter,
   Loader2,
   RefreshCcw,
   Scissors,
@@ -15,20 +17,39 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 import AdminHeader from "@/components/admin/AdminHeader";
 import {
   analyticsService,
-  type SmartAnalytics,
   type AnalyticsRecommendation,
+  type SmartAnalytics,
 } from "@/lib/analyticsService";
 
 function formatMoney(value: number) {
   return `${Number(value || 0).toLocaleString("fr-FR")} DA`;
 }
 
-function formatPercent(value: number) {
-  const number = Number(value || 0);
-  return `${number > 0 ? "+" : ""}${number}%`;
+function getTodayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getFirstDayOfMonthISO() {
+  const date = new Date();
+
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
 }
 
 export default function AnalyticsPage() {
@@ -36,12 +57,21 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  async function loadAnalytics() {
+  const [startDate, setStartDate] = useState(getFirstDayOfMonthISO());
+  const [endDate, setEndDate] = useState(getTodayISO());
+
+  async function loadAnalytics(
+    customStartDate = startDate,
+    customEndDate = endDate
+  ) {
     setLoading(true);
     setMessage("");
 
     try {
-      const res = await analyticsService.getSmartAnalytics();
+      const res = await analyticsService.getSmartAnalytics({
+        startDate: customStartDate,
+        endDate: customEndDate,
+      });
 
       if (res.success && res.data) {
         setData(res.data);
@@ -56,9 +86,81 @@ export default function AnalyticsPage() {
     }
   }
 
+  function handleFilterSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!startDate || !endDate) {
+      setMessage("Veuillez choisir une date début et une date fin.");
+      return;
+    }
+
+    if (startDate > endDate) {
+      setMessage("La date début ne peut pas être supérieure à la date fin.");
+      return;
+    }
+
+    loadAnalytics(startDate, endDate);
+  }
+
+  function resetToToday() {
+    const today = getTodayISO();
+
+    setStartDate(today);
+    setEndDate(today);
+    loadAnalytics(today, today);
+  }
+
+  function resetToMonth() {
+    const firstDay = getFirstDayOfMonthISO();
+    const today = getTodayISO();
+
+    setStartDate(firstDay);
+    setEndDate(today);
+    loadAnalytics(firstDay, today);
+  }
+
   useEffect(() => {
     loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const rendezVousChartData = useMemo(() => {
+    if (!data) return [];
+
+    return [
+      {
+        name: "En attente",
+        total: Number(data.rendezvous.en_attente || 0),
+      },
+      {
+        name: "Confirmés",
+        total: Number(data.rendezvous.confirmes || 0),
+      },
+      {
+        name: "Terminés",
+        total: Number(data.rendezvous.termines || 0),
+      },
+      {
+        name: "Annulés",
+        total: Number(data.rendezvous.annules || 0),
+      },
+    ];
+  }, [data]);
+
+  const revenueChartData = useMemo(() => {
+    if (!data) return [];
+
+    return [
+      {
+        name: "Aujourd’hui",
+        recette: Number(data.revenue.today || 0),
+      },
+      {
+        name: "Période filtrée",
+        recette: Number(data.revenue.month || 0),
+      },
+    ];
+  }, [data]);
 
   if (loading) {
     return (
@@ -114,13 +216,83 @@ export default function AnalyticsPage() {
           </div>
 
           <button
-            onClick={loadAnalytics}
+            onClick={() => loadAnalytics()}
             className="flex items-center justify-center gap-2 rounded-full bg-amber-500 px-6 py-3 text-sm font-black text-black transition hover:bg-amber-400"
           >
             <RefreshCcw size={16} />
             Actualiser
           </button>
         </div>
+
+        <form
+          onSubmit={handleFilterSubmit}
+          className="mb-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950"
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
+              <Filter size={20} />
+            </div>
+
+            <div>
+              <h2 className="text-lg font-black">
+                Filtrer par intervalle de date
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                Choisissez une date début et une date fin pour analyser les
+                recettes et rendez-vous.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto_auto_auto] md:items-end">
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">
+                Date début
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none transition focus:border-amber-500 dark:border-white/10 dark:bg-black/30"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">
+                Date fin
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none transition focus:border-amber-500 dark:border-white/10 dark:bg-black/30"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="h-12 rounded-2xl bg-amber-500 px-6 text-sm font-black text-black transition hover:bg-amber-400"
+            >
+              Appliquer
+            </button>
+
+            <button
+              type="button"
+              onClick={resetToToday}
+              className="h-12 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-black transition hover:bg-slate-50 dark:border-white/10 dark:bg-black/30 dark:hover:bg-white/10"
+            >
+              Aujourd’hui
+            </button>
+
+            <button
+              type="button"
+              onClick={resetToMonth}
+              className="h-12 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-black transition hover:bg-slate-50 dark:border-white/10 dark:bg-black/30 dark:hover:bg-white/10"
+            >
+              Ce mois
+            </button>
+          </div>
+        </form>
 
         {message && (
           <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-semibold text-red-600">
@@ -129,10 +301,213 @@ export default function AnalyticsPage() {
         )}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={<Wallet />} label="Recette aujourd’hui" value={formatMoney(data.revenue.today)} />
-          <StatCard icon={<TrendingUp />} label="Recette du mois" value={formatMoney(data.revenue.month)} subValue={`${formatPercent(data.revenue.month_growth_percent)} vs mois précédent`} />
-          <StatCard icon={<CalendarDays />} label="Total rendez-vous" value={String(data.rendezvous.total)} />
-          <StatCard icon={<AlertTriangle />} label="Taux d’annulation" value={`${data.rendezvous.cancellation_rate}%`} />
+          <StatCard
+            icon={<Wallet />}
+            label="Recette aujourd’hui"
+            value={formatMoney(data.revenue.today)}
+          />
+
+          <StatCard
+            icon={<TrendingUp />}
+            label="Recette période"
+            value={formatMoney(data.revenue.month)}
+          />
+
+          <StatCard
+            icon={<CalendarDays />}
+            label="Total rendez-vous"
+            value={String(data.rendezvous.total)}
+          />
+
+          <StatCard
+            icon={<AlertTriangle />}
+            label="Taux d’annulation"
+            value={`${data.rendezvous.cancellation_rate}%`}
+          />
+        </section>
+
+        <section className="mt-8 grid gap-6 xl:grid-cols-2">
+          <BigCard title="Graphique des recettes" icon={<Wallet />}>
+            <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  Courbe des recettes
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  Période sélectionnée : {startDate} jusqu’à {endDate}
+                </p>
+              </div>
+
+              <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-600 dark:text-emerald-400">
+                Période : {formatMoney(data.revenue.month)}
+              </div>
+            </div>
+
+            <div className="mb-5 grid gap-3 md:grid-cols-2">
+              <MiniMoneyStat
+                label="Aujourd’hui"
+                value={formatMoney(data.revenue.today)}
+              />
+              <MiniMoneyStat
+                label="Période filtrée"
+                value={formatMoney(data.revenue.month)}
+              />
+            </div>
+
+            <div className="h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={revenueChartData}
+                  margin={{
+                    top: 10,
+                    right: 20,
+                    left: 0,
+                    bottom: 10,
+                  }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    className="stroke-slate-200 dark:stroke-white/10"
+                  />
+
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fill: "#64748B",
+                    }}
+                  />
+
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fill: "#64748B",
+                    }}
+                    tickFormatter={(value) =>
+                      `${Number(value || 0).toLocaleString("fr-FR")}`
+                    }
+                  />
+
+                  <Tooltip
+                    cursor={{
+                      stroke: "#10B981",
+                      strokeWidth: 1,
+                    }}
+                    contentStyle={{
+                      borderRadius: "18px",
+                      border: "1px solid rgba(148, 163, 184, 0.25)",
+                      boxShadow: "0 20px 40px rgba(15, 23, 42, 0.12)",
+                      fontWeight: 700,
+                    }}
+                    formatter={(value) => [
+                      formatMoney(Number(value)),
+                      "Recette",
+                    ]}
+                    labelFormatter={(label) => `Période : ${label}`}
+                  />
+
+                  <Line
+                    type="monotone"
+                    dataKey="recette"
+                    name="Recette"
+                    stroke="#10B981"
+                    strokeWidth={4}
+                    dot={{
+                      r: 6,
+                      strokeWidth: 3,
+                      fill: "#FFFFFF",
+                      stroke: "#10B981",
+                    }}
+                    activeDot={{
+                      r: 8,
+                      strokeWidth: 3,
+                      fill: "#10B981",
+                      stroke: "#FFFFFF",
+                    }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </BigCard>
+
+          <BigCard title="Graphique des rendez-vous" icon={<BarChart3 />}>
+            <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  Répartition par statut
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  Période sélectionnée : {startDate} jusqu’à {endDate}
+                </p>
+              </div>
+
+              <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs font-black text-amber-600 dark:text-amber-400">
+                Total : {data.rendezvous.total} RDV
+              </div>
+            </div>
+
+            <div className="h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rendezVousChartData} barSize={46}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    className="stroke-slate-200 dark:stroke-white/10"
+                  />
+
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fill: "#64748B",
+                    }}
+                  />
+
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fill: "#64748B",
+                    }}
+                  />
+
+                  <Tooltip
+                    cursor={{
+                      fill: "rgba(245, 158, 11, 0.08)",
+                    }}
+                    contentStyle={{
+                      borderRadius: "18px",
+                      border: "1px solid rgba(148, 163, 184, 0.25)",
+                      boxShadow: "0 20px 40px rgba(15, 23, 42, 0.12)",
+                      fontWeight: 700,
+                    }}
+                    formatter={(value) => [`${value} RDV`, "Total"]}
+                    labelFormatter={(label) => `Statut : ${label}`}
+                  />
+
+                  <Bar
+                    dataKey="total"
+                    name="Total"
+                    fill="#F59E0B"
+                    radius={[14, 14, 6, 6]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </BigCard>
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -146,16 +521,37 @@ export default function AnalyticsPage() {
           </BigCard>
 
           <BigCard title="Services principaux" icon={<Scissors />}>
-            <InfoLine label="Plus demandé" value={data.services.top_requested_service?.nom || "-"} />
-            <InfoLine label="Plus rentable" value={data.services.top_revenue_service?.nom || "-"} />
-            <InfoLine label="Plus annulé" value={data.services.top_cancelled_service?.nom || "-"} />
+            <InfoLine
+              label="Plus demandé"
+              value={data.services.top_requested_service?.nom || "-"}
+            />
+            <InfoLine
+              label="Plus rentable"
+              value={data.services.top_revenue_service?.nom || "-"}
+            />
+            <InfoLine
+              label="Plus annulé"
+              value={data.services.top_cancelled_service?.nom || "-"}
+            />
           </BigCard>
 
           <BigCard title="Créneaux et planning" icon={<Clock />}>
-            <InfoLine label="Jour fort" value={data.days.best_day?.day_name || "-"} />
-            <InfoLine label="Jour faible" value={data.days.weak_day?.day_name || "-"} />
-            <InfoLine label="Heure forte" value={data.hours.peak_hour?.hour || "-"} />
-            <InfoLine label="Heure faible" value={data.hours.weak_hour?.hour || "-"} />
+            <InfoLine
+              label="Jour fort"
+              value={data.days.best_day?.day_name || "-"}
+            />
+            <InfoLine
+              label="Jour faible"
+              value={data.days.weak_day?.day_name || "-"}
+            />
+            <InfoLine
+              label="Heure forte"
+              value={data.hours.peak_hour?.hour || "-"}
+            />
+            <InfoLine
+              label="Heure faible"
+              value={data.hours.weak_hour?.hour || "-"}
+            />
           </BigCard>
         </section>
 
@@ -187,7 +583,9 @@ export default function AnalyticsPage() {
                     key={client.id}
                     index={index + 1}
                     label={`${client.nom || ""} ${client.prenom || ""}`.trim()}
-                    value={`${client.total_rdv} RDV · ${formatMoney(client.total_depense)}`}
+                    value={`${client.total_rdv} RDV · ${formatMoney(
+                      client.total_depense
+                    )}`}
                   />
                 ))
               )}
@@ -215,7 +613,7 @@ function StatCard({
   value,
   subValue,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   subValue?: string;
@@ -225,11 +623,16 @@ function StatCard({
       <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
         {icon}
       </div>
+
       <p className="text-xs font-black uppercase tracking-widest text-slate-500">
         {label}
       </p>
+
       <p className="mt-2 text-3xl font-black">{value}</p>
-      {subValue && <p className="mt-2 text-xs font-bold text-emerald-500">{subValue}</p>}
+
+      {subValue && (
+        <p className="mt-2 text-xs font-bold text-emerald-500">{subValue}</p>
+      )}
     </div>
   );
 }
@@ -240,8 +643,8 @@ function BigCard({
   children,
 }: {
   title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-950">
@@ -251,6 +654,7 @@ function BigCard({
         </div>
         <h2 className="text-lg font-black">{title}</h2>
       </div>
+
       {children}
     </div>
   );
@@ -261,6 +665,15 @@ function MiniStat({ label, value }: { label: string; value: number }) {
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-black/30">
       <p className="text-xs font-bold text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function MiniMoneyStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-black/30">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-black">{value}</p>
     </div>
   );
 }
@@ -289,8 +702,10 @@ function RankLine({
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-sm font-black text-black">
           {index}
         </div>
+
         <p className="font-bold">{label || "-"}</p>
       </div>
+
       <p className="text-sm font-bold text-slate-500">{value}</p>
     </div>
   );

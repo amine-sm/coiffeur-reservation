@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useTheme } from "next-themes";
 import {
   BarChart3,
@@ -12,7 +13,9 @@ import {
   Moon,
   Scissors,
   Sun,
+  Users,
 } from "lucide-react";
+
 import { authService } from "@/lib/authService";
 
 const goldText =
@@ -43,7 +46,7 @@ function ThemeModeButton() {
     <button
       type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-0 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white sm:w-auto sm:gap-2 sm:px-4"
+      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-0 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10 sm:w-auto sm:gap-2 sm:px-4"
       title={isDark ? "Passer en mode normal" : "Passer en mode sombre"}
     >
       {isDark ? <Sun size={18} /> : <Moon size={18} />}
@@ -61,7 +64,7 @@ function AdminNavLink({
   label,
 }: {
   href: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
 }) {
   const pathname = usePathname();
@@ -70,7 +73,7 @@ function AdminNavLink({
   return (
     <Link
       href={href}
-      className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition-all ${
+      className={`flex shrink-0 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition-all ${
         active
           ? "border-amber-400 bg-amber-400 text-black shadow-lg shadow-amber-500/20"
           : "border-slate-200 bg-white text-slate-700 hover:border-amber-400/50 hover:bg-amber-50 dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
@@ -140,7 +143,7 @@ export default function AdminHeader() {
             </h1>
 
             <p className="truncate text-[11px] font-medium text-slate-500 dark:text-gray-400 sm:text-xs">
-              Services, créneaux, rendez-vous et analyse intelligente
+              Services, clients, créneaux, rendez-vous et analyse intelligente
             </p>
           </div>
         </div>
@@ -161,40 +164,48 @@ export default function AdminHeader() {
 
       <div className="mx-auto max-w-7xl px-4 pb-4 sm:px-6">
         <div className="flex flex-col gap-3 rounded-[24px] border border-slate-200 bg-white/90 p-3 shadow-lg shadow-slate-200/50 dark:border-white/10 dark:bg-[#0D0D0D]/90 dark:shadow-black/30 xl:flex-row xl:items-center xl:justify-between">
-          <div>
+          <div className="shrink-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">
               Navigation admin
             </p>
 
             <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-gray-400">
-              Gérez chaque module dans une page séparée.
+              Tous les modules admin.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <AdminNavLink
-              href="/admin/dashboard"
-              icon={<LayoutDashboard size={17} />}
-              label="Dashboard"
-            />
+          <div className="flex w-full justify-start overflow-x-auto xl:justify-end">
+            <div className="flex min-w-max flex-nowrap items-center justify-end gap-2">
+              <AdminNavLink
+                href="/admin/dashboard"
+                icon={<LayoutDashboard size={17} />}
+                label="Dashboard"
+              />
 
-            <AdminNavLink
-              href="/admin/services"
-              icon={<Scissors size={17} />}
-              label="Services"
-            />
+              <AdminNavLink
+                href="/admin/clients"
+                icon={<Users size={17} />}
+                label="Clients"
+              />
 
-            <AdminNavLink
-              href="/admin/creneaux"
-              icon={<CalendarDays size={17} />}
-              label="Créneaux"
-            />
+              <AdminNavLink
+                href="/admin/services"
+                icon={<Scissors size={17} />}
+                label="Services"
+              />
 
-            <AdminNavLink
-              href="/admin/analytics"
-              icon={<BarChart3 size={17} />}
-              label="Analyse"
-            />
+              <AdminNavLink
+                href="/admin/creneaux"
+                icon={<CalendarDays size={17} />}
+                label="Créneaux"
+              />
+
+              <AdminNavLink
+                href="/admin/analytics"
+                icon={<BarChart3 size={17} />}
+                label="Analyse"
+              />
+            </div>
           </div>
         </div>
       </div>

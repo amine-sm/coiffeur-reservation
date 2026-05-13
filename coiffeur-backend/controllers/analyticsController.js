@@ -1,27 +1,32 @@
 const {
-    getSmartAnalytics
+  getSmartAnalytics,
 } = require("../services/analyticsService");
 
 const getAnalyticsDashboard = async (req, res) => {
-    try {
-        const data = await getSmartAnalytics();
+  try {
+    const { startDate, endDate } = req.query;
 
-        res.json({
-            success: true,
-            message: "Analyse intelligente récupérée avec succès",
-            data
-        });
-    } catch (error) {
-        console.error("Erreur analyse intelligente :", error);
+    const data = await getSmartAnalytics({
+      startDate,
+      endDate,
+    });
 
-        res.status(500).json({
-            success: false,
-            message: "Erreur récupération analyse intelligente",
-            error: error.message
-        });
-    }
+    res.json({
+      success: true,
+      message: "Analyse intelligente récupérée avec succès",
+      data,
+    });
+  } catch (error) {
+    console.error("Erreur analyse intelligente :", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Erreur récupération analyse intelligente",
+      error: error.message,
+    });
+  }
 };
 
 module.exports = {
-    getAnalyticsDashboard
+  getAnalyticsDashboard,
 };
