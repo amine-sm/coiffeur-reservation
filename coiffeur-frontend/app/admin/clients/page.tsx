@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
-  ExternalLink,
   Loader2,
   Mail,
   MessageCircle,
@@ -59,25 +58,8 @@ function formatDate(value?: string | null) {
 
 function getClientFullName(client: Client) {
   const fullName = `${client.nom || ""} ${client.prenom || ""}`.trim();
+
   return fullName || "Client sans nom";
-}
-
-function getTelegramUrl(value?: string | null) {
-  if (!value) return null;
-
-  const cleanValue = String(value).trim();
-
-  if (!cleanValue) return null;
-
-  if (cleanValue.startsWith("@")) {
-    return `https://t.me/${cleanValue.replace("@", "")}`;
-  }
-
-  if (cleanValue.startsWith("http://") || cleanValue.startsWith("https://")) {
-    return cleanValue;
-  }
-
-  return `https://t.me/${cleanValue}`;
 }
 
 export default function ClientsPage() {
@@ -388,20 +370,11 @@ function ContactValue({ value }: { value?: string | null }) {
 }
 
 function TelegramBadge({ value }: { value?: string | null }) {
-  const telegramUrl = getTelegramUrl(value);
-
-  if (telegramUrl) {
+  if (value) {
     return (
-      <a
-        href={telegramUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-600 transition hover:bg-emerald-500/20 dark:text-emerald-400"
-        title="Ouvrir Telegram"
-      >
+      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-600 dark:text-emerald-400">
         Lié
-        <ExternalLink size={13} />
-      </a>
+      </span>
     );
   }
 
