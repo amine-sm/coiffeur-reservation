@@ -9,6 +9,7 @@ import { creneauService } from "@/lib/creneauService";
 import type { Creneau, Service } from "@/lib/types";
 import {
   CalendarDays,
+  CheckCircle2,
   Clock,
   Loader2,
   Plus,
@@ -25,17 +26,15 @@ const goldBg = "bg-gradient-to-r from-[#D97706] via-[#FBBF24] to-[#D97706]";
 const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 const minutesOptions = ["00", "15", "30", "45"];
 
+const timeOptions = hours.flatMap((hour) =>
+  minutesOptions.map((minute) => `${hour}:${minute}`),
+);
+
 const inputClass =
   "w-full rounded-2xl border px-4 py-3 text-base outline-none transition-all sm:text-sm " +
   "bg-white text-slate-900 placeholder-slate-400 border-slate-200 " +
   "focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 " +
   "dark:bg-[#111111] dark:text-white dark:placeholder-gray-500 dark:border-white/10";
-
-const selectClass =
-  "w-full rounded-2xl border px-4 py-3 text-base outline-none transition-all sm:text-sm " +
-  "bg-white text-slate-900 border-slate-200 " +
-  "focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 " +
-  "dark:bg-[#111111] dark:text-white dark:border-white/10";
 
 const cardClass =
   "rounded-[26px] border p-4 shadow-xl sm:rounded-3xl sm:p-6 " +
@@ -47,11 +46,16 @@ type AlertState = {
   message: string;
 } | null;
 
-const initialCreneauForm = {
-  service_ids: [] as string[],
+type CreneauFormState = {
+  service_ids: string[];
+  date_creneau: string;
+  selected_times: string[];
+};
+
+const initialCreneauForm: CreneauFormState = {
+  service_ids: [],
   date_creneau: "",
-  heure: "09",
-  minute: "30",
+  selected_times: [],
 };
 
 function getTodayDateValue(): string {
@@ -85,7 +89,7 @@ export default function AdminCreneauxPage() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [creneaux, setCreneaux] = useState<Creneau[]>([]);
-  const [form, setForm] = useState(initialCreneauForm);
+  const [form, setForm] = useState<CreneauFormState>(initialCreneauForm);
   const [filterDate, setFilterDate] = useState(getTodayDateValue());
   const [alert, setAlert] = useState<AlertState>(null);
   const [loading, setLoading] = useState(true);
@@ -127,6 +131,8 @@ export default function AdminCreneauxPage() {
 
   const hourKeys = Object.keys(groupedByHour).sort();
 
+  const selectedTimes = form.selected_times ?? [];
+
   const checkAuth = useCallback(() => {
     if (!authService.isAuthenticated()) {
       router.push("/admin/login");
@@ -136,7 +142,10 @@ export default function AdminCreneauxPage() {
     return true;
   }, [router]);
 
-  function setPrettyAlert(type: "success" | "error" | "info" | "warning", message: string) {
+  function setPrettyAlert(
+    type: "success" | "error" | "info" | "warning",
+    message: string,
+  ) {
     setAlert({ type, message });
 
     setTimeout(() => {
@@ -158,13 +167,19 @@ export default function AdminCreneauxPage() {
       if (servicesRes.success && servicesRes.data) {
         setServices(servicesRes.data);
       } else {
-        setPrettyAlert("error", servicesRes.message || "Erreur chargement services.");
+        setPrettyAlert(
+          "error",
+          servicesRes.message || "Erreur chargement services.",
+        );
       }
 
       if (creneauxRes.success && creneauxRes.data) {
         setCreneaux(creneauxRes.data);
       } else {
-        setPrettyAlert("error", creneauxRes.message || "Erreur chargement créneaux.");
+        setPrettyAlert(
+          "error",
+          creneauxRes.message || "Erreur chargement créneaux.",
+        );
       }
     } catch (error) {
       setPrettyAlert("error", getErrorMessage(error));
@@ -177,7 +192,7 @@ export default function AdminCreneauxPage() {
     loadData();
   }, [checkAuth]);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -199,8 +214,67 @@ export default function AdminCreneauxPage() {
     });
   }
 
+  function toggleTime(time: string) {
+    setForm((prev) => {
+      const currentTimes = prev.selected_times ?? [];
+      const exists = currentTimes.includes(time);
+
+      return {
+        ...prev,
+        selected_times: exists
+          ? currentTimes.filter((item) => item !== time)
+          : [...currentTimes, time],
+      };
+    });
+  }
+
+  function selectMorningTimes() {
+    const morningTimes = timeOptions.filter((time) => {
+      const hour = Number(time.slice(0, 2));
+      return hour >= 8 && hour < 12;
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      selected_times: morningTimes,
+    }));
+  }
+
+  function selectAfternoonTimes() {
+    const afternoonTimes = timeOptions.filter((time) => {
+      const hour = Number(time.slice(0, 2));
+      return hour >= 12 && hour < 18;
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      selected_times: afternoonTimes,
+    }));
+  }
+
+  function selectAllDayTimes() {
+    const allDayTimes = timeOptions.filter((time) => {
+      const hour = Number(time.slice(0, 2));
+      return hour >= 8 && hour < 20;
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      selected_times: allDayTimes,
+    }));
+  }
+
+  function clearSelectedTimes() {
+    setForm((prev) => ({
+      ...prev,
+      selected_times: [],
+    }));
+  }
+
   async function submitCreneau(e: React.FormEvent) {
     e.preventDefault();
+
+    const currentTimes = form.selected_times ?? [];
 
     if (form.service_ids.length === 0) {
       setPrettyAlert("warning", "Sélectionnez au moins un service.");
@@ -212,19 +286,33 @@ export default function AdminCreneauxPage() {
       return;
     }
 
-    const heureCreneau = `${form.heure}:${form.minute}`;
+    if (currentTimes.length === 0) {
+      setPrettyAlert("warning", "Sélectionnez au moins un créneau horaire.");
+      return;
+    }
 
     setSaving(true);
 
     try {
-      const res = await creneauService.create({
-        service_ids: form.service_ids,
-        date_creneau: form.date_creneau,
-        heure_creneau: heureCreneau,
-      });
+      const sortedTimes = [...currentTimes].sort();
 
-      if (res.success) {
-        setPrettyAlert("success", "Créneau publié avec succès.");
+      const results = await Promise.all(
+        sortedTimes.map((time) =>
+          creneauService.create({
+            service_ids: form.service_ids,
+            date_creneau: form.date_creneau,
+            heure_creneau: time,
+          }),
+        ),
+      );
+
+      const hasError = results.some((res) => !res.success);
+
+      if (!hasError) {
+        setPrettyAlert(
+          "success",
+          `${sortedTimes.length} créneau(x) publié(s) avec succès.`,
+        );
 
         setForm({
           ...initialCreneauForm,
@@ -234,7 +322,12 @@ export default function AdminCreneauxPage() {
         setFilterDate(form.date_creneau);
         await loadData();
       } else {
-        setPrettyAlert("error", res.message || "Erreur création créneau.");
+        const firstError = results.find((res) => !res.success);
+
+        setPrettyAlert(
+          "error",
+          firstError?.message || "Erreur création des créneaux.",
+        );
       }
     } catch (error) {
       setPrettyAlert("error", getErrorMessage(error));
@@ -279,7 +372,7 @@ export default function AdminCreneauxPage() {
             </h1>
 
             <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-gray-400">
-              Publiez les disponibilités du salon et organisez-les par jour et par heure.
+              Publiez plusieurs disponibilités du salon en une seule opération.
             </p>
           </div>
 
@@ -314,11 +407,13 @@ export default function AdminCreneauxPage() {
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[390px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
           <section className={cardClass}>
-            <h2 className={`flex items-center gap-2 text-xl font-serif font-bold ${goldText}`}>
+            <h2
+              className={`flex items-center gap-2 text-xl font-serif font-bold ${goldText}`}
+            >
               <Plus size={20} />
-              Publier un créneau
+              Publier des créneaux
             </h2>
 
             <form onSubmit={submitCreneau} className="mt-6 space-y-4">
@@ -334,7 +429,9 @@ export default function AdminCreneauxPage() {
                     </div>
                   ) : (
                     activeServices.map((service) => {
-                      const checked = form.service_ids.includes(String(service.id));
+                      const checked = form.service_ids.includes(
+                        String(service.id),
+                      );
 
                       return (
                         <label
@@ -369,49 +466,111 @@ export default function AdminCreneauxPage() {
                 </div>
               </div>
 
-              <input
-                type="date"
-                name="date_creneau"
-                value={form.date_creneau}
-                onChange={handleChange}
-                required
-                min={getTodayDateValue()}
-                className={inputClass}
-              />
+              <div>
+                <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-gray-400">
+                  Date des créneaux
+                </label>
 
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  name="heure"
-                  value={form.heure}
+                <input
+                  type="date"
+                  name="date_creneau"
+                  value={form.date_creneau}
                   onChange={handleChange}
-                  className={selectClass}
-                >
-                  {hours.map((h) => (
-                    <option key={h} value={h}>
-                      {h} h
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  name="minute"
-                  value={form.minute}
-                  onChange={handleChange}
-                  className={selectClass}
-                >
-                  {minutesOptions.map((m) => (
-                    <option key={m} value={m}>
-                      :{m}
-                    </option>
-                  ))}
-                </select>
+                  required
+                  min={getTodayDateValue()}
+                  className={inputClass}
+                />
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-sm font-bold text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-white">
-                Créneau sélectionné :{" "}
-                <span className="text-lg text-[#FBBF24]">
-                  {form.heure}:{form.minute}
-                </span>
+              <div>
+                <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-gray-400">
+                  Sélectionner plusieurs créneaux horaires
+                </label>
+
+                <div className="mb-3 grid grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={selectMorningTimes}
+                    className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-700 transition hover:bg-amber-400 hover:text-black dark:text-amber-300"
+                  >
+                    Matin
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={selectAfternoonTimes}
+                    className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-700 transition hover:bg-amber-400 hover:text-black dark:text-amber-300"
+                  >
+                    Après-midi
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={selectAllDayTimes}
+                    className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-500 hover:text-white dark:text-emerald-300"
+                  >
+                    Journée
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={clearSelectedTimes}
+                    className="rounded-2xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-500 hover:text-white"
+                  >
+                    Vider
+                  </button>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {timeOptions.map((time) => {
+                      const checked = (form.selected_times ?? []).includes(
+                        time,
+                      );
+
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => toggleTime(time)}
+                          className={`flex items-center justify-center gap-1 rounded-2xl border px-3 py-2 text-sm font-black transition-all ${
+                            checked
+                              ? "border-amber-400 bg-amber-400 text-black shadow-lg shadow-amber-500/20"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-amber-300 dark:border-white/10 dark:bg-[#111111] dark:text-white"
+                          }`}
+                        >
+                          {checked && <CheckCircle2 size={14} />}
+                          {time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-xs font-bold text-sky-700 dark:text-sky-300">
+                  Créneaux sélectionnés : {(form.selected_times ?? []).length}
+                </div>
+
+                {(form.selected_times ?? []).length > 0 && (
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-300">
+                    <p className="mb-2 text-slate-500 dark:text-gray-400">
+                      Aperçu :
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {[...(form.selected_times ?? [])]
+                        .sort()
+                        .map((time) => (
+                          <span
+                            key={time}
+                            className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-700 dark:text-amber-300"
+                          >
+                            {time}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
@@ -419,7 +578,7 @@ export default function AdminCreneauxPage() {
                 disabled={saving}
                 className={`w-full rounded-2xl px-5 py-3 font-black text-black transition hover:opacity-90 disabled:opacity-50 ${goldBg}`}
               >
-                {saving ? "Publication..." : "Publier le créneau"}
+                {saving ? "Publication..." : "Publier les créneaux"}
               </button>
             </form>
           </section>
@@ -452,7 +611,8 @@ export default function AdminCreneauxPage() {
             </div>
 
             <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-300">
-              Résultat : {filteredCreneaux.length} créneau(x) disponible(s) pour la date {filterDate}
+              Résultat : {filteredCreneaux.length} créneau(x) disponible(s)
+              pour la date {filterDate}
             </div>
 
             {loading ? (
@@ -461,7 +621,10 @@ export default function AdminCreneauxPage() {
               </div>
             ) : filteredCreneaux.length === 0 ? (
               <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 py-14 text-center dark:border-white/15 dark:bg-white/[0.03]">
-                <CalendarDays size={44} className="mx-auto mb-4 text-slate-400" />
+                <CalendarDays
+                  size={44}
+                  className="mx-auto mb-4 text-slate-400"
+                />
                 <p className="text-lg font-black text-slate-700 dark:text-white">
                   Aucun créneau disponible
                 </p>
@@ -526,6 +689,7 @@ export default function AdminCreneauxPage() {
                             </div>
 
                             <button
+                              type="button"
                               onClick={() => deleteCreneau(creneau.id)}
                               disabled={creneau.statut === "reserve"}
                               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-red-400/30 bg-red-400/10 text-red-500 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"

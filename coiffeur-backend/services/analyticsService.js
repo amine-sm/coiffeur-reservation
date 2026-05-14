@@ -108,8 +108,22 @@ function buildRecommendations(data) {
   return recommendations;
 }
 
+/* =========================
+   RECETTES
+========================= */
+
 async function getRevenueStats(params = {}) {
   const filter = getDateFilter(params);
+
+  const startDate = isValidDate(params.startDate)
+    ? params.startDate
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString()
+        .slice(0, 10);
+
+  const endDate = isValidDate(params.endDate)
+    ? params.endDate
+    : new Date().toISOString().slice(0, 10);
 
   const [[today]] = await pool.query(`
     SELECT COALESCE(SUM(prix), 0) AS total
@@ -134,6 +148,28 @@ async function getRevenueStats(params = {}) {
     `,
     filter.params
   );
+
+  const [dailyRows] = await pool.query(
+    `
+    SELECT 
+      DATE(date_rdv) AS date,
+      COALESCE(SUM(prix), 0) AS total
+    FROM rendezvous
+    WHERE statut = 'termine'
+      AND DATE(date_rdv) BETWEEN ? AND ?
+    GROUP BY DATE(date_rdv)
+    ORDER BY DATE(date_rdv) ASC
+    `,
+    [startDate, endDate]
+  );
+
+  const daily = dailyRows.map((row) => ({
+    date:
+      row.date instanceof Date
+        ? row.date.toISOString().slice(0, 10)
+        : String(row.date).slice(0, 10),
+    total: Number(row.total || 0),
+  }));
 
   let previousPeriodTotal = 0;
 
@@ -165,11 +201,21 @@ async function getRevenueStats(params = {}) {
   return {
     today: Number(today.total || 0),
     week: Number(week.total || 0),
+
+    // Ici "month" représente la période filtrée dans votre frontend
     month: Number(period.total || 0),
+
     previous_month: previousPeriodTotal,
     month_growth_percent: getPercentChange(period.total, previousPeriodTotal),
+
+    // IMPORTANT pour la courbe jour par jour
+    daily,
   };
 }
+
+/* =========================
+   RENDEZ-VOUS
+========================= */
 
 async function getRendezvousStats(params = {}) {
   const filter = getDateFilter(params);
@@ -233,6 +279,10 @@ async function getRendezvousStats(params = {}) {
     cancellation_rate: getCancellationRate(total.total, annules.total),
   };
 }
+
+/* =========================
+   SERVICES
+========================= */
 
 async function getTopServices(params = {}) {
   const filter = getDateFilter(params, "r");
@@ -299,6 +349,10 @@ async function getTopServices(params = {}) {
   };
 }
 
+/* =========================
+   JOURS
+========================= */
+
 async function getDayAnalytics(params = {}) {
   const filter = getDateFilter(params);
 
@@ -332,6 +386,10 @@ async function getDayAnalytics(params = {}) {
   };
 }
 
+/* =========================
+   HEURES
+========================= */
+
 async function getHourAnalytics(params = {}) {
   const filter = getDateFilter(params);
 
@@ -355,6 +413,10 @@ async function getHourAnalytics(params = {}) {
     weak_hour: hours.length > 0 ? hours[hours.length - 1] : null,
   };
 }
+
+/* =========================
+   CLIENTS
+========================= */
 
 async function getClientAnalytics(params = {}) {
   const filter = getDateFilter(params, "r");
@@ -387,6 +449,10 @@ async function getClientAnalytics(params = {}) {
   };
 }
 
+/* =========================
+   CRENEAUX
+========================= */
+
 async function getCreneauxAnalytics() {
   const [[available]] = await pool.query(`
     SELECT COUNT(*) AS total
@@ -406,6 +472,10 @@ async function getCreneauxAnalytics() {
     reserves: Number(reserved.total || 0),
   };
 }
+
+/* =========================
+   SMART ANALYTICS
+========================= */
 
 async function getSmartAnalytics(params = {}) {
   const revenue = await getRevenueStats(params);

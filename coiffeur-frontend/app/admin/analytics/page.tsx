@@ -52,6 +52,135 @@ function getFirstDayOfMonthISO() {
     .slice(0, 10);
 }
 
+function formatShortDate(value: string) {
+  if (!value) return "-";
+
+  const parts = value.slice(0, 10).split("-");
+
+  if (parts.length !== 3) {
+    return value;
+  }
+
+  return `${parts[2]}/${parts[1]}`;
+}
+
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDateISO(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getDatesBetween(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return [];
+
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+
+  if (start > end) return [];
+
+  const dates: string[] = [];
+  const current = new Date(start);
+
+  while (current <= end) {
+    dates.push(formatDateISO(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+type RevenueCurveItem = {
+  date: string;
+  name: string;
+  recette: number;
+};
+
+type DailyRevenueItem = {
+  date?: string;
+  day?: string;
+  name?: string;
+  total?: number;
+  recette?: number;
+  revenue?: number;
+  montant?: number;
+};
+
+function getRevenueValue(item: DailyRevenueItem) {
+  const recette = Number(item.recette || 0);
+  const total = Number(item.total || 0);
+  const revenue = Number(item.revenue || 0);
+  const montant = Number(item.montant || 0);
+
+  return recette || total || revenue || montant || 0;
+}
+
+function buildRevenueCurveData(
+  data: SmartAnalytics | null,
+  startDate: string,
+  endDate: string,
+): RevenueCurveItem[] {
+  const dates = getDatesBetween(startDate, endDate);
+
+  if (!data || dates.length === 0) {
+    return [];
+  }
+
+  const revenueAny = data.revenue as unknown as {
+    today?: number;
+    month?: number;
+    daily?: DailyRevenueItem[];
+    by_day?: DailyRevenueItem[];
+    byDay?: DailyRevenueItem[];
+    days?: DailyRevenueItem[];
+  };
+
+  const dailyData =
+    revenueAny.daily ||
+    revenueAny.by_day ||
+    revenueAny.byDay ||
+    revenueAny.days ||
+    [];
+
+  const revenueByDate = new Map<string, number>();
+
+  if (Array.isArray(dailyData)) {
+    dailyData.forEach((item) => {
+      const rawDate = item.date || item.day || item.name;
+
+      if (!rawDate) return;
+
+      const dateKey = String(rawDate).slice(0, 10);
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+
+      revenueByDate.set(dateKey, getRevenueValue(item));
+    });
+  }
+
+  if (dates.length === 1 && revenueByDate.size === 0) {
+    return [
+      {
+        date: dates[0],
+        name: formatShortDate(dates[0]),
+        recette: Number(data.revenue.month || data.revenue.today || 0),
+      },
+    ];
+  }
+
+  return dates.map((date) => ({
+    date,
+    name: formatShortDate(date),
+    recette: Number(revenueByDate.get(date) || 0),
+  }));
+}
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<SmartAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +191,7 @@ export default function AnalyticsPage() {
 
   async function loadAnalytics(
     customStartDate = startDate,
-    customEndDate = endDate
+    customEndDate = endDate,
   ) {
     setLoading(true);
     setMessage("");
@@ -148,19 +277,23 @@ export default function AnalyticsPage() {
   }, [data]);
 
   const revenueChartData = useMemo(() => {
-    if (!data) return [];
+    return buildRevenueCurveData(data, startDate, endDate);
+  }, [data, startDate, endDate]);
 
-    return [
-      {
-        name: "Aujourd’hui",
-        recette: Number(data.revenue.today || 0),
-      },
-      {
-        name: "Période filtrée",
-        recette: Number(data.revenue.month || 0),
-      },
-    ];
-  }, [data]);
+  const revenueIntervalTotal = useMemo(() => {
+    if (!data) return 0;
+
+    const chartTotal = revenueChartData.reduce(
+      (sum, item) => sum + Number(item.recette || 0),
+      0,
+    );
+
+    if (chartTotal > 0) {
+      return chartTotal;
+    }
+
+    return Number(data.revenue.month || 0);
+  }, [data, revenueChartData]);
 
   if (loading) {
     return (
@@ -238,8 +371,8 @@ export default function AnalyticsPage() {
                 Filtrer par intervalle de date
               </h2>
               <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">
-                Choisissez une date début et une date fin pour analyser les
-                recettes et rendez-vous.
+                Choisissez une date début et une date fin pour afficher la
+                courbe des recettes jour par jour.
               </p>
             </div>
           </div>
@@ -309,8 +442,8 @@ export default function AnalyticsPage() {
 
           <StatCard
             icon={<TrendingUp />}
-            label="Recette période"
-            value={formatMoney(data.revenue.month)}
+            label="Recette intervalle"
+            value={formatMoney(revenueIntervalTotal)}
           />
 
           <StatCard
@@ -327,11 +460,11 @@ export default function AnalyticsPage() {
         </section>
 
         <section className="mt-8 grid gap-6 xl:grid-cols-2">
-          <BigCard title="Graphique des recettes" icon={<Wallet />}>
+          <BigCard title="Courbe des recettes" icon={<Wallet />}>
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-black text-slate-900 dark:text-white">
-                  Courbe des recettes
+                  Recettes jour par jour
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-gray-400">
                   Période sélectionnée : {startDate} jusqu’à {endDate}
@@ -339,7 +472,7 @@ export default function AnalyticsPage() {
               </div>
 
               <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-600 dark:text-emerald-400">
-                Période : {formatMoney(data.revenue.month)}
+                Total intervalle : {formatMoney(revenueIntervalTotal)}
               </div>
             </div>
 
@@ -349,24 +482,24 @@ export default function AnalyticsPage() {
                 value={formatMoney(data.revenue.today)}
               />
               <MiniMoneyStat
-                label="Période filtrée"
-                value={formatMoney(data.revenue.month)}
+                label="Total intervalle"
+                value={formatMoney(revenueIntervalTotal)}
               />
             </div>
 
-            <div className="h-[320px] w-full">
+            <div className="h-[360px] w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-black/30">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={revenueChartData}
                   margin={{
-                    top: 10,
-                    right: 20,
+                    top: 20,
+                    right: 25,
                     left: 0,
                     bottom: 10,
                   }}
                 >
                   <CartesianGrid
-                    strokeDasharray="3 3"
+                    strokeDasharray="4 4"
                     vertical={false}
                     className="stroke-slate-200 dark:stroke-white/10"
                   />
@@ -375,8 +508,12 @@ export default function AnalyticsPage() {
                     dataKey="name"
                     tickLine={false}
                     axisLine={false}
+                    interval={0}
+                    angle={revenueChartData.length > 10 ? -35 : 0}
+                    textAnchor={revenueChartData.length > 10 ? "end" : "middle"}
+                    height={revenueChartData.length > 10 ? 60 : 35}
                     tick={{
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 700,
                       fill: "#64748B",
                     }}
@@ -398,7 +535,8 @@ export default function AnalyticsPage() {
                   <Tooltip
                     cursor={{
                       stroke: "#10B981",
-                      strokeWidth: 1,
+                      strokeWidth: 2,
+                      strokeDasharray: "4 4",
                     }}
                     contentStyle={{
                       borderRadius: "18px",
@@ -410,7 +548,15 @@ export default function AnalyticsPage() {
                       formatMoney(Number(value)),
                       "Recette",
                     ]}
-                    labelFormatter={(label) => `Période : ${label}`}
+                    labelFormatter={(label, payload) => {
+                      const item = payload?.[0]?.payload as
+                        | RevenueCurveItem
+                        | undefined;
+
+                      return item?.date
+                        ? `Date : ${item.date}`
+                        : `Date : ${label}`;
+                    }}
                   />
 
                   <Line
@@ -420,13 +566,13 @@ export default function AnalyticsPage() {
                     stroke="#10B981"
                     strokeWidth={4}
                     dot={{
-                      r: 6,
+                      r: 5,
                       strokeWidth: 3,
                       fill: "#FFFFFF",
                       stroke: "#10B981",
                     }}
                     activeDot={{
-                      r: 8,
+                      r: 9,
                       strokeWidth: 3,
                       fill: "#10B981",
                       stroke: "#FFFFFF",
@@ -435,6 +581,17 @@ export default function AnalyticsPage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+
+            {revenueChartData.length > 0 &&
+              revenueChartData.every((item) => Number(item.recette || 0) === 0) && (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs font-bold text-amber-700 dark:text-amber-300">
+                  La courbe affiche toutes les dates de l’intervalle, mais les
+                  recettes journalières sont à 0. Si vous avez des ventes dans
+                  cette période, vérifiez que le backend renvoie bien{" "}
+                  <span className="font-black">revenue.daily</span> ou{" "}
+                  <span className="font-black">revenue.by_day</span>.
+                </div>
+              )}
           </BigCard>
 
           <BigCard title="Graphique des rendez-vous" icon={<BarChart3 />}>
@@ -453,7 +610,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="h-[320px] w-full">
+            <div className="h-[360px] w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-black/30">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={rendezVousChartData} barSize={46}>
                   <CartesianGrid
@@ -584,7 +741,7 @@ export default function AnalyticsPage() {
                     index={index + 1}
                     label={`${client.nom || ""} ${client.prenom || ""}`.trim()}
                     value={`${client.total_rdv} RDV · ${formatMoney(
-                      client.total_depense
+                      client.total_depense,
                     )}`}
                   />
                 ))

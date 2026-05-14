@@ -14,6 +14,11 @@ export type SmartAnalytics = {
     month: number;
     previous_month: number;
     month_growth_percent: number;
+
+    daily: Array<{
+      date: string;
+      total: number;
+    }>;
   };
 
   rendezvous: {
