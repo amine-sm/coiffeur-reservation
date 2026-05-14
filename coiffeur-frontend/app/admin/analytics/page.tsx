@@ -471,7 +471,7 @@ export default function AnalyticsPage() {
                 </p>
               </div>
 
-              <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-600 dark:text-emerald-400">
+              <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs font-black text-amber-600 dark:text-amber-400">
                 Total intervalle : {formatMoney(revenueIntervalTotal)}
               </div>
             </div>
@@ -534,7 +534,7 @@ export default function AnalyticsPage() {
 
                   <Tooltip
                     cursor={{
-                      stroke: "#10B981",
+                      stroke: "#F59E0B",
                       strokeWidth: 2,
                       strokeDasharray: "4 4",
                     }}
@@ -563,18 +563,18 @@ export default function AnalyticsPage() {
                     type="monotone"
                     dataKey="recette"
                     name="Recette"
-                    stroke="#10B981"
+                    stroke="#F59E0B"
                     strokeWidth={4}
                     dot={{
                       r: 5,
                       strokeWidth: 3,
                       fill: "#FFFFFF",
-                      stroke: "#10B981",
+                      stroke: "#F59E0B",
                     }}
                     activeDot={{
                       r: 9,
                       strokeWidth: 3,
-                      fill: "#10B981",
+                      fill: "#F59E0B",
                       stroke: "#FFFFFF",
                     }}
                   />
@@ -583,7 +583,9 @@ export default function AnalyticsPage() {
             </div>
 
             {revenueChartData.length > 0 &&
-              revenueChartData.every((item) => Number(item.recette || 0) === 0) && (
+              revenueChartData.every(
+                (item) => Number(item.recette || 0) === 0,
+              ) && (
                 <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs font-bold text-amber-700 dark:text-amber-300">
                   La courbe affiche toutes les dates de l’intervalle, mais les
                   recettes journalières sont à 0. Si vous avez des ventes dans
