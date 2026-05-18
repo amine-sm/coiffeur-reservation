@@ -40,16 +40,21 @@ function formatMoney(value: number) {
   return `${Number(value || 0).toLocaleString("fr-FR")} DA`;
 }
 
+function formatDateISO(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function getTodayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateISO(new Date());
 }
 
 function getFirstDayOfMonthISO() {
   const date = new Date();
-
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  return formatDateISO(new Date(date.getFullYear(), date.getMonth(), 1));
 }
 
 function formatShortDate(value: string) {
@@ -67,14 +72,6 @@ function formatShortDate(value: string) {
 function parseLocalDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
-}
-
-function formatDateISO(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }
 
 function getDatesBetween(startDate: string, endDate: string) {
@@ -133,7 +130,6 @@ function buildRevenueCurveData(
   }
 
   const revenueAny = data.revenue as unknown as {
-    today?: number;
     month?: number;
     daily?: DailyRevenueItem[];
     by_day?: DailyRevenueItem[];
@@ -164,12 +160,19 @@ function buildRevenueCurveData(
     });
   }
 
+  /*
+    IMPORTANT :
+    Si une seule date est sélectionnée et que daily est vide,
+    on utilise seulement revenue.month.
+    On ne prend PAS revenue.today, sinon une ancienne date
+    affiche la recette d'aujourd'hui par erreur.
+  */
   if (dates.length === 1 && revenueByDate.size === 0) {
     return [
       {
         date: dates[0],
         name: formatShortDate(dates[0]),
-        recette: Number(data.revenue.month || data.revenue.today || 0),
+        recette: Number(data.revenue.month || 0),
       },
     ];
   }
@@ -205,10 +208,12 @@ export default function AnalyticsPage() {
       if (res.success && res.data) {
         setData(res.data);
       } else {
+        setData(null);
         setMessage(res.message || "Erreur chargement analyse intelligente.");
       }
     } catch (error) {
       console.error(error);
+      setData(null);
       setMessage("Erreur serveur analyse intelligente.");
     } finally {
       setLoading(false);
@@ -283,17 +288,12 @@ export default function AnalyticsPage() {
   const revenueIntervalTotal = useMemo(() => {
     if (!data) return 0;
 
-    const chartTotal = revenueChartData.reduce(
-      (sum, item) => sum + Number(item.recette || 0),
-      0,
-    );
-
-    if (chartTotal > 0) {
-      return chartTotal;
-    }
-
+    /*
+      Le total intervalle vient toujours du backend.
+      On n'utilise jamais revenue.today ici.
+    */
     return Number(data.revenue.month || 0);
-  }, [data, revenueChartData]);
+  }, [data]);
 
   if (loading) {
     return (
@@ -321,6 +321,13 @@ export default function AnalyticsPage() {
           <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-red-600">
             {message || "Aucune donnée disponible."}
           </div>
+
+          <button
+            onClick={() => loadAnalytics()}
+            className="mt-5 rounded-full bg-amber-500 px-6 py-3 text-sm font-black text-black transition hover:bg-amber-400"
+          >
+            Réessayer
+          </button>
         </div>
       </main>
     );
@@ -590,8 +597,9 @@ export default function AnalyticsPage() {
                   La courbe affiche toutes les dates de l’intervalle, mais les
                   recettes journalières sont à 0. Si vous avez des ventes dans
                   cette période, vérifiez que le backend renvoie bien{" "}
-                  <span className="font-black">revenue.daily</span> ou{" "}
-                  <span className="font-black">revenue.by_day</span>.
+                  <span className="font-black">revenue.daily</span> avec{" "}
+                  <span className="font-black">date</span> et{" "}
+                  <span className="font-black">total</span>.
                 </div>
               )}
           </BigCard>
@@ -739,7 +747,7 @@ export default function AnalyticsPage() {
               ) : (
                 data.clients.loyal_clients.map((client, index) => (
                   <RankLine
-                    key={client.id}
+                    key={client.id || index}
                     index={index + 1}
                     label={`${client.nom || ""} ${client.prenom || ""}`.trim()}
                     value={`${client.total_rdv} RDV · ${formatMoney(
@@ -823,7 +831,7 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-black/30">
       <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-2xl font-black">{Number(value || 0)}</p>
     </div>
   );
 }

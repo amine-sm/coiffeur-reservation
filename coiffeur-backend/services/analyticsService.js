@@ -23,6 +23,26 @@ function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 }
 
+function getTodayLocalISO() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getFirstDayOfMonthLocalISO() {
+  const date = new Date();
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+
+  const year = firstDay.getFullYear();
+  const month = String(firstDay.getMonth() + 1).padStart(2, "0");
+  const day = String(firstDay.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function getDateFilter(params = {}, alias = "") {
   const startDate = params.startDate;
   const endDate = params.endDate;
@@ -113,17 +133,13 @@ function buildRecommendations(data) {
 ========================= */
 
 async function getRevenueStats(params = {}) {
-  const filter = getDateFilter(params);
-
   const startDate = isValidDate(params.startDate)
     ? params.startDate
-    : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-        .toISOString()
-        .slice(0, 10);
+    : getFirstDayOfMonthLocalISO();
 
   const endDate = isValidDate(params.endDate)
     ? params.endDate
-    : new Date().toISOString().slice(0, 10);
+    : getTodayLocalISO();
 
   const [[today]] = await pool.query(`
     SELECT COALESCE(SUM(prix), 0) AS total
@@ -144,71 +160,62 @@ async function getRevenueStats(params = {}) {
     SELECT COALESCE(SUM(prix), 0) AS total
     FROM rendezvous
     WHERE statut = 'termine'
-    ${filter.clause}
+      AND DATE(date_rdv) BETWEEN ? AND ?
     `,
-    filter.params
+    [startDate, endDate]
   );
 
+  /*
+    IMPORTANT :
+    Ici on utilise DATE_FORMAT directement dans MySQL.
+    Comme ça, Node.js ne transforme pas la date avec toISOString().
+    Cela évite le décalage 18/05 -> 17/05.
+  */
   const [dailyRows] = await pool.query(
     `
     SELECT 
-      DATE(date_rdv) AS date,
+      DATE_FORMAT(date_rdv, '%Y-%m-%d') AS date,
       COALESCE(SUM(prix), 0) AS total
     FROM rendezvous
     WHERE statut = 'termine'
       AND DATE(date_rdv) BETWEEN ? AND ?
-    GROUP BY DATE(date_rdv)
-    ORDER BY DATE(date_rdv) ASC
+    GROUP BY DATE_FORMAT(date_rdv, '%Y-%m-%d')
+    ORDER BY DATE_FORMAT(date_rdv, '%Y-%m-%d') ASC
     `,
     [startDate, endDate]
   );
 
   const daily = dailyRows.map((row) => ({
-    date:
-      row.date instanceof Date
-        ? row.date.toISOString().slice(0, 10)
-        : String(row.date).slice(0, 10),
+    date: String(row.date),
     total: Number(row.total || 0),
   }));
 
-  let previousPeriodTotal = 0;
+  const [[previousPeriod]] = await pool.query(
+    `
+    SELECT COALESCE(SUM(prix), 0) AS total
+    FROM rendezvous
+    WHERE statut = 'termine'
+      AND DATE(date_rdv) BETWEEN DATE_SUB(?, INTERVAL DATEDIFF(?, ?) + 1 DAY)
+      AND DATE_SUB(?, INTERVAL 1 DAY)
+    `,
+    [startDate, endDate, startDate, startDate]
+  );
 
-  if (filter.hasFilter) {
-    const [[previousPeriod]] = await pool.query(
-      `
-      SELECT COALESCE(SUM(prix), 0) AS total
-      FROM rendezvous
-      WHERE statut = 'termine'
-        AND DATE(date_rdv) BETWEEN DATE_SUB(?, INTERVAL DATEDIFF(?, ?) + 1 DAY)
-        AND DATE_SUB(?, INTERVAL 1 DAY)
-      `,
-      [params.startDate, params.endDate, params.startDate, params.startDate]
-    );
+  const previousPeriodTotal = Number(previousPeriod.total || 0);
 
-    previousPeriodTotal = Number(previousPeriod.total || 0);
-  } else {
-    const [[previousMonth]] = await pool.query(`
-      SELECT COALESCE(SUM(prix), 0) AS total
-      FROM rendezvous
-      WHERE statut = 'termine'
-        AND YEAR(date_rdv) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
-        AND MONTH(date_rdv) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
-    `);
-
-    previousPeriodTotal = Number(previousMonth.total || 0);
-  }
+  console.log("=== ANALYTICS REVENUE ===");
+  console.log("startDate:", startDate);
+  console.log("endDate:", endDate);
+  console.log("today:", Number(today.total || 0));
+  console.log("period:", Number(period.total || 0));
+  console.log("daily:", daily);
 
   return {
     today: Number(today.total || 0),
     week: Number(week.total || 0),
-
-    // Ici "month" représente la période filtrée dans votre frontend
     month: Number(period.total || 0),
-
     previous_month: previousPeriodTotal,
     month_growth_percent: getPercentChange(period.total, previousPeriodTotal),
-
-    // IMPORTANT pour la courbe jour par jour
     daily,
   };
 }
